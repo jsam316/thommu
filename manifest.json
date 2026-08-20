@@ -1,0 +1,15 @@
+{
+  "name": "Pellet Pop Carnival",
+  "short_name": "PelletPop",
+  "description": "A carnival shooting-gallery game for kids: pop balloons, grab power-ups, and chase the Golden Round!",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#7ec8ff",
+  "theme_color": "#7ec8ff",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
