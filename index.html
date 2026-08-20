@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pellet Pop Carnival</title>
+<style>
+  :root {
+    --sky-top: #7ec8ff;
+    --sky-bottom: #cdeeff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+    background: #0a0e1a;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #game {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(to bottom, var(--sky-top) 0%, var(--sky-bottom) 65%, #8fd68f 65%, #6bbf59 100%);
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 16px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hud-box {
+    background: rgba(20, 20, 40, 0.55);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 14px;
+    font-weight: bold;
+    font-size: 18px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+    backdrop-filter: blur(2px);
+  }
+  #ammoWrap {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .pellet-icon {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff9c4, #f4b400 60%, #b5850a);
+    box-shadow: 0 0 3px rgba(0,0,0,0.5);
+  }
+  .pellet-icon.used { background: #555; box-shadow: none; opacity: 0.4; }
+  #timerBox { text-align: right; }
+  #timerVal { font-size: 26px; }
+  #timerVal.low { color: #ff6b6b; animation: pulse 0.6s infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+
+  #centerMsg {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #fff;
+    z-index: 20;
+    background: rgba(15,15,30,0.72);
+    padding: 28px 34px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  #centerMsg h1 {
+    margin: 0 0 8px 0;
+    font-size: 40px;
+    background: linear-gradient(90deg,#ffde59,#ff914d,#ff6b6b,#7ed6ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  #centerMsg p { font-size: 16px; margin: 6px 0; opacity: 0.9; }
+  #centerMsg .big { font-size: 20px; margin-top: 4px; }
+  #startBtn, #restartBtn {
+    margin-top: 16px;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 40px;
+    background: linear-gradient(180deg,#ffd25c,#ff9d2f);
+    color: #3a2400;
+    box-shadow: 0 4px 0 #b96a00, 0 6px 12px rgba(0,0,0,0.4);
+    cursor: pointer;
+    pointer-events: all;
+  }
+  #startBtn:active, #restartBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b96a00; }
+
+  #levelUpMsg {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    color: #fff;
+    font-size: 44px;
+    font-weight: 900;
+    text-shadow: 2px 2px 0 #ff6b6b, 0 0 20px rgba(255,255,255,0.8);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .floatText {
+    position: absolute;
+    font-weight: 900;
+    pointer-events: none;
+    z-index: 12;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  }
+
+  #reloadHint {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 15px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #reloadHint.show { opacity: 1; }
+
+  #muteBtn {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    z-index: 10;
+    background: rgba(20,20,40,0.55);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="canvas"></canvas>
+
+  <div id="hud">
+    <div class="hud-box">
+      SCORE: <span id="scoreVal">0</span><br>
+      Level <span id="levelVal">1</span>
+    </div>
+    <div class="hud-box" id="timerBox">
+      <span id="timerVal">60</span>s
+      <div id="ammoWrap"></div>
+    </div>
+  </div>
+
+  <div id="levelUpMsg">LEVEL UP!</div>
+  <div id="reloadHint">Tap R or the button below to reload!</div>
+
+  <button id="muteBtn" title="Mute/unmute">🔊</button>
+
+  <div id="centerMsg">
+    <h1>🎈 Pellet Pop Carnival 🎯</h1>
+    <p>Aim your pellet gun and pop the balloons and targets before time runs out!</p>
+    <p>Click/tap to shoot. Press <b>R</b> or the reload button to reload.</p>
+    <p class="big">Watch out — don't shoot the birds or the friendly mascot!</p>
+    <button id="startBtn">Start Game</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const game = document.getElementById('game');
+  const scoreEl = document.getElementById('scoreVal');
+  const levelEl = document.getElementById('levelVal');
+  const timerEl = document.getElementById('timerVal');
+  const ammoWrap = document.getElementById('ammoWrap');
+  const centerMsg = document.getElementById('centerMsg');
+  const startBtn = document.getElementById('startBtn');
+  const levelUpMsg = document.getElementById('levelUpMsg');
+  const reloadHint = document.getElementById('reloadHint');
+  const muteBtn = document.getElementById('muteBtn');
+
+  let W, H;
+  function resize() {
+    W = canvas.width = game.clientWidth;
+    H = canvas.height = game.clientHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ---------- Audio (simple WebAudio synthesized SFX, no external files) ----------
+  let audioCtx = null;
+  let muted = false;
+  function ensureAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+  }
+  function beep(freq, dur, type, vol, glideTo) {
+    if (muted) return;
+    ensureAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, audioCtx.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + dur);
+  }
+  function sfxShoot() { beep(900, 0.08, 'square', 0.08, 400); }
+  function sfxPop() { beep(500, 0.12, 'triangle', 0.18, 900); }
+  function sfxBad() { beep(160, 0.35, 'sawtooth', 0.15, 80); }
+  function sfxReload() { beep(300, 0.1, 'sine', 0.1, 500); }
+  function sfxLevelUp() { beep(523, 0.1, 'sine', 0.2, 1046); setTimeout(()=>beep(659,0.15,'sine',0.2,1318),100); }
+  function sfxEmpty() { beep(150, 0.08, 'square', 0.05); }
+
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+  });
+
+  // ---------- Game constants ----------
+  const MAG_SIZE = 6;
+  const RELOAD_TIME = 1100; // ms
+  const GAME_TIME = 60; // seconds
+  const TARGET_TYPES = {
+    balloonRed:    { emoji: '🎈', color: '#ff5757', points: 10,  radius: 26, speedMul: 1 },
+    balloonBlue:   { emoji: '🎈', color: '#4dabf7', points: 10,  radius: 26, speedMul: 1 },
+    balloonGold:   { emoji: '🎈', color: '#ffd43b', points: 30,  radius: 22, speedMul: 1.6 },
+    duck:          { emoji: '🦆', color: '#ffe066', points: 20,  radius: 24, speedMul: 1.3 },
+    star:          { emoji: '⭐', color: '#fff176', points: 50,  radius: 20, speedMul: 2.0 },
+    can:           { emoji: '🥫', color: '#adb5bd', points: 15,  radius: 22, speedMul: 0.8 },
+  };
+  const BAD_TYPES = {
+    bird:   { emoji: '🐦', points: -25 },
+    mascot: { emoji: '🐻', points: -50 },
+  };
+
+  // ---------- State ----------
+  let state = 'menu'; // menu | playing | gameover
+  let score = 0;
+  let level = 1;
+  let timeLeft = GAME_TIME;
+  let ammo = MAG_SIZE;
+  let reloading = false;
+  let reloadStart = 0;
+  let entities = [];
+  let particles = [];
+  let floatTexts = [];
+  let lastSpawn = 0;
+  let spawnInterval = 900;
+  let lastFrame = 0;
+  let timerAccum = 0;
+  let comboCount = 0;
+  let comboTimer = 0;
+  let shakeTime = 0;
+  let shakeMag = 0;
+  let crosshair = { x: W/2, y: H/2 };
+
+  function resetGame() {
+    score = 0;
+    level = 1;
+    timeLeft = GAME_TIME;
+    ammo = MAG_SIZE;
+    reloading = false;
+    entities = [];
+    particles = [];
+    floatTexts = [];
+    lastSpawn = 0;
+    spawnInterval = 900;
+    comboCount = 0;
+    comboTimer = 0;
+    updateHud();
+  }
+
+  function updateHud() {
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    timerEl.textContent = Math.ceil(timeLeft);
+    timerEl.classList.toggle('low', timeLeft <= 10);
+    ammoWrap.innerHTML = '';
+    for (let i = 0; i < MAG_SIZE; i++) {
+      const d = document.createElement('div');
+      d.className = 'pellet-icon' + (i < ammo ? '' : ' used');
+      ammoWrap.appendChild(d);
+    }
+  }
+
+  // ---------- Entity spawning ----------
+  function randRange(a,b){ return a + Math.random()*(b-a); }
+
+  function spawnEntity() {
+    const isBad = Math.random() < Math.min(0.12 + level*0.01, 0.28);
+    let typeKey, typeDef, bad = false;
+    if (isBad) {
+      const keys = Object.keys(BAD_TYPES);
+      typeKey = keys[Math.floor(Math.random()*keys.length)];
+      typeDef = BAD_TYPES[typeKey];
+      bad = true;
+    } else {
+      const keys = Object.keys(TARGET_TYPES);
+      // weight commoner targets higher
+      const weights = { balloonRed:5, balloonBlue:5, can:4, duck:3, balloonGold:2, star:1 };
+      const pool = [];
+      keys.forEach(k => { for(let i=0;i<weights[k];i++) pool.push(k); });
+      typeKey = pool[Math.floor(Math.random()*pool.length)];
+      typeDef = TARGET_TYPES[typeKey];
+    }
+
+    const radius = bad ? 24 : typeDef.radius;
+    const fromLeft = Math.random() < 0.5;
+    const y = randRange(H*0.18, H*0.75);
+    const baseSpeed = (60 + level*10) * (bad ? 1.4 : (typeDef.speedMul||1));
+    const dir = fromLeft ? 1 : -1;
+    const x = fromLeft ? -radius*2 : W + radius*2;
+    const vy = randRange(-20, 20);
+
+    entities.push({
+      typeKey, bad, def: typeDef,
+      x, y, radius,
+      vx: dir * baseSpeed * randRange(0.85,1.15),
+      vy,
+      wobble: Math.random()*1000,
+      alive: true,
+      spawnT: performance.now(),
+    });
+  }
+
+  function popParticles(x, y, color) {
+    for (let i=0;i<10;i++){
+      const ang = Math.random()*Math.PI*2;
+      const spd = randRange(60,220);
+      particles.push({
+        x, y,
+        vx: Math.cos(ang)*spd,
+        vy: Math.sin(ang)*spd,
+        life: randRange(0.35,0.7),
+        maxLife: 0.7,
+        color: color || '#fff',
+        size: randRange(3,7),
+      });
+    }
+  }
+
+  function addFloatText(x, y, text, color) {
+    floatTexts.push({ x, y, text, color: color || '#fff', life: 0.9, maxLife: 0.9 });
+  }
+
+  // ---------- Input / Shooting ----------
+  function getPos(e) {
+    const rect = game.getBoundingClientRect();
+    let clientX, clientY;
+    if (e.touches && e.touches.length) {
+      clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX; clientY = e.clientY;
+    }
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function tryReload() {
+    if (state !== 'playing') return;
+    if (reloading || ammo === MAG_SIZE) return;
+    reloading = true;
+    reloadStart = performance.now();
+    sfxReload();
+    reloadHint.classList.remove('show');
+  }
+
+  function shoot(x, y) {
+    if (state !== 'playing') return;
+    if (reloading) return;
+    if (ammo <= 0) {
+      sfxEmpty();
+      reloadHint.classList.add('show');
+      return;
+    }
+    ammo--;
+    updateHud();
+    sfxShoot();
+    shakeTime = 0.08; shakeMag = 4;
+
+    // muzzle flash particle burst at crosshair
+    for (let i=0;i<4;i++){
+      particles.push({
+        x, y, vx: randRange(-40,40), vy: randRange(-40,40),
+        life: 0.15, maxLife: 0.15, color: '#fff7c2', size: randRange(2,4)
+      });
+    }
+
+    // hit test - topmost (last drawn) first
+    let hit = null;
+    for (let i = entities.length - 1; i >= 0; i--) {
+      const en = entities[i];
+      if (!en.alive) continue;
+      const dx = en.x - x, dy = en.y - y;
+      if (Math.sqrt(dx*dx+dy*dy) <= en.radius + 6) { hit = en; break; }
+    }
+
+    if (hit) {
+      hit.alive = false;
+      entities = entities.filter(e => e !== hit);
+      if (hit.bad) {
+        score = Math.max(0, score + hit.def.points);
+        popParticles(hit.x, hit.y, '#ff6b6b');
+        addFloatText(hit.x, hit.y, hit.def.points + '', '#ff6b6b');
+        sfxBad();
+        shakeTime = 0.25; shakeMag = 10;
+        comboCount = 0;
+      } else {
+        comboTimer = 1.2;
+        comboCount++;
+        const comboBonus = comboCount >= 2 ? Math.floor(hit.def.points * 0.5 * Math.min(comboCount-1,4)) : 0;
+        const gained = hit.def.points + comboBonus;
+        score += gained;
+        popParticles(hit.x, hit.y, hit.def.color);
+        addFloatText(hit.x, hit.y, '+' + gained + (comboCount>1 ? ' x'+comboCount+'!' : ''), '#ffe066');
+        sfxPop();
+      }
+      updateHud();
+    }
+
+    if (ammo === 0) {
+      setTimeout(() => { if (state==='playing') reloadHint.classList.add('show'); }, 200);
+    }
+  }
+
+  game.addEventListener('mousedown', (e) => {
+    if (state !== 'playing') return;
+    const p = getPos(e);
+    shoot(p.x, p.y);
+  });
+  game.addEventListener('touchstart', (e) => {
+    if (state !== 'playing') return;
+    e.preventDefault();
+    const p = getPos(e);
+    crosshair = p;
+    shoot(p.x, p.y);
+  }, { passive: false });
+  game.addEventListener('mousemove', (e) => {
+    crosshair = getPos(e);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') tryReload();
+  });
+
+  reloadHint.addEventListener('click', tryReload);
+
+  // ---------- Main loop ----------
+  function update(dt, now) {
+    if (state !== 'playing') return;
+
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      endGame();
+      return;
+    }
+
+    // level progression every 15s
+    const newLevel = Math.min(5, 1 + Math.floor((GAME_TIME - timeLeft) / 15));
+    if (newLevel !== level) {
+      level = newLevel;
+      spawnInterval = Math.max(360, 900 - level*110);
+      triggerLevelUp();
+    }
+
+    // reload handling
+    if (reloading && now - reloadStart >= RELOAD_TIME) {
+      reloading = false;
+      ammo = MAG_SIZE;
+      updateHud();
+    }
+
+    // combo timer decay
+    if (comboTimer > 0) {
+      comboTimer -= dt;
+      if (comboTimer <= 0) comboCount = 0;
+    }
+
+    // spawn
+    if (now - lastSpawn > spawnInterval) {
+      lastSpawn = now;
+      spawnEntity();
+    }
+
+    // move entities
+    entities.forEach(en => {
+      en.x += en.vx * dt;
+      en.y += en.vy * dt + Math.sin((now/300) + en.wobble) * 0.6;
+    });
+    entities = entities.filter(en => en.x > -100 && en.x < W + 100);
+
+    // particles
+    particles.forEach(p => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 260 * dt;
+      p.life -= dt;
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    floatTexts.forEach(f => { f.y -= 40*dt; f.life -= dt; });
+    floatTexts = floatTexts.filter(f => f.life > 0);
+
+    if (shakeTime > 0) shakeTime -= dt;
+
+    updateHud();
+  }
+
+  function triggerLevelUp() {
+    sfxLevelUp();
+    levelUpMsg.style.transition = 'none';
+    levelUpMsg.style.opacity = '0';
+    levelUpMsg.style.transform = 'translate(-50%,-50%) scale(0.5)';
+    requestAnimationFrame(() => {
+      levelUpMsg.style.transition = 'all 0.4s ease-out';
+      levelUpMsg.style.opacity = '1';
+      levelUpMsg.style.transform = 'translate(-50%,-50%) scale(1.1)';
+      setTimeout(() => {
+        levelUpMsg.style.transition = 'all 0.5s ease-in';
+        levelUpMsg.style.opacity = '0';
+        levelUpMsg.style.transform = 'translate(-50%,-50%) scale(1.4)';
+      }, 700);
+    });
+  }
+
+  function drawBackgroundDecor(now) {
+    // sun
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#fff6b0';
+    ctx.beginPath();
+    ctx.arc(W*0.86, H*0.14, 46, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // clouds
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#ffffff';
+    const cloudX = (now/8000 % 1) * (W+300) - 150;
+    drawCloud(cloudX, H*0.12, 1);
+    drawCloud(W - ((now/6000 % 1) * (W+300) - 150), H*0.22, 0.7);
+    ctx.restore();
+  }
+
+  function drawCloud(x, y, scale) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, 40*scale, 20*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x+30*scale, y+6*scale, 30*scale, 16*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x-30*scale, y+8*scale, 26*scale, 14*scale, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawEntity(en) {
+    ctx.save();
+    ctx.translate(en.x, en.y);
+    ctx.font = `${en.radius*2}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 4;
+    const flip = en.vx < 0 ? -1 : 1;
+    ctx.scale(flip, 1);
+    ctx.fillText(en.def.emoji, 0, 2);
+    ctx.restore();
+  }
+
+  function drawCrosshair() {
+    if (state !== 'playing') return;
+    const { x, y } = crosshair;
+    ctx.save();
+    ctx.strokeStyle = reloading ? 'rgba(255,80,80,0.9)' : 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI*2);
+    ctx.moveTo(x-26, y); ctx.lineTo(x-10, y);
+    ctx.moveTo(x+10, y); ctx.lineTo(x+26, y);
+    ctx.moveTo(x, y-26); ctx.lineTo(x, y-10);
+    ctx.moveTo(x, y+10); ctx.lineTo(x, y+26);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function render(now) {
+    ctx.clearRect(0,0,W,H);
+
+    let ox = 0, oy = 0;
+    if (shakeTime > 0) {
+      ox = randRange(-shakeMag, shakeMag);
+      oy = randRange(-shakeMag, shakeMag);
+    }
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    drawBackgroundDecor(now);
+
+    // ground details (grass bumps)
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    for (let i=0;i<6;i++){
+      ctx.beginPath();
+      ctx.ellipse(W*(i/6)+40, H*0.9, 60, 14, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    entities.forEach(drawEntity);
+
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    floatTexts.forEach(f => {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, f.life / f.maxLife);
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 22px Trebuchet MS, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(f.text, f.x, f.y);
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.restore();
+    });
+
+    drawCrosshair();
+
+    ctx.restore();
+  }
+
+  function loop(ts) {
+    if (!lastFrame) lastFrame = ts;
+    const dt = Math.min(0.05, (ts - lastFrame) / 1000);
+    lastFrame = ts;
+    update(dt, ts);
+    render(ts);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------- Game flow ----------
+  function startGame() {
+    resetGame();
+    state = 'playing';
+    centerMsg.classList.add('hidden');
+    ensureAudio();
+  }
+
+  function endGame() {
+    state = 'gameover';
+    reloadHint.classList.remove('show');
+    let msg;
+    if (score >= 500) msg = "Sharpshooter Champion! 🏆";
+    else if (score >= 300) msg = "Awesome Aim! 🌟";
+    else if (score >= 150) msg = "Nice Shooting! 🎯";
+    else msg = "Good Try! Play Again! 🎈";
+
+    centerMsg.innerHTML = `
+      <h1>Time's Up!</h1>
+      <p class="big">${msg}</p>
+      <p>Final Score: <b>${score}</b></p>
+      <p>You reached Level ${level}</p>
+      <button id="restartBtn">Play Again</button>
+    `;
+    centerMsg.classList.remove('hidden');
+    document.getElementById('restartBtn').addEventListener('click', startGame);
+  }
+
+  startBtn.addEventListener('click', startGame);
+})();
+</script>
+</body>
+</html>
