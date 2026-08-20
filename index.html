@@ -350,8 +350,36 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    overflow: hidden;
   }
   #reloadBtn:active, #muteBtn:active { transform: scale(0.92); }
+
+  .reloadInner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .reloadFill {
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    width: 100%;
+    background: linear-gradient(180deg, rgba(120,255,180,0.55), rgba(48,209,88,0.5));
+    border-right: 1px solid rgba(255,255,255,0.35);
+    transition: width 0.25s ease, background 0.25s ease;
+    z-index: 0;
+    pointer-events: none;
+  }
+  #reloadBtn.empty .reloadFill {
+    width: 0% !important;
+    background: transparent;
+    border-right: none;
+  }
+  #reloadBtn.reloadingNow .reloadFill {
+    background: linear-gradient(180deg, rgba(255,214,10,0.55), rgba(255,159,10,0.5));
+  }
   #reloadBtn.urgent {
     background: rgba(255,69,58,0.55);
     border-color: rgba(255,255,255,0.6);
@@ -385,7 +413,10 @@
   <div id="levelUpMsg">LEVEL UP!</div>
   <div id="reloadHint" class="glass" style="border-radius:999px;">Tap here (or press R) to reload!</div>
 
-  <button id="reloadBtn" class="glass" style="border-radius:999px;" title="Reload">🔄 <span class="reloadLabel">Reload</span></button>
+  <button id="reloadBtn" class="glass" style="border-radius:999px;" title="Reload">
+    <span class="reloadFill" id="reloadFill"></span>
+    <span class="reloadInner">🔄 <span class="reloadLabel">Reload</span></span>
+  </button>
   <button id="muteBtn" class="glass" style="border-radius:50%;" title="Mute/unmute">🔊</button>
 
   <div id="centerMsg" class="glass" style="border-radius:34px;">
@@ -421,6 +452,7 @@
   const levelUpMsg = document.getElementById('levelUpMsg');
   const reloadHint = document.getElementById('reloadHint');
   const reloadBtn = document.getElementById('reloadBtn');
+  const reloadFill = document.getElementById('reloadFill');
   const muteBtn = document.getElementById('muteBtn');
   const diffRow = document.getElementById('diffRow');
   const lbContent = document.getElementById('lbContent');
@@ -633,6 +665,9 @@
       ammoWrap.appendChild(d);
     }
     reloadBtn.classList.toggle('urgent', ammo === 0 && !reloading);
+    reloadBtn.classList.toggle('empty', ammo === 0);
+    reloadBtn.classList.toggle('reloadingNow', reloading);
+    reloadFill.style.width = Math.round((ammo / DIFF.magSize) * 100) + '%';
   }
 
   // ---------- Entity spawning ----------
