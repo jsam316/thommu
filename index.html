@@ -14,6 +14,19 @@
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
+
+    /* Liquid Glass tokens */
+    --glass-fill: rgba(255,255,255,0.14);
+    --glass-fill-strong: rgba(255,255,255,0.22);
+    --glass-border: rgba(255,255,255,0.55);
+    --glass-border-dim: rgba(255,255,255,0.28);
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 8px rgba(0,0,0,0.08);
+    --glass-blur: blur(24px) saturate(180%);
+    --accent: #0a84ff;
+    --accent-2: #64d2ff;
+    --danger: #ff453a;
+    --ink: #fff;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -21,7 +34,7 @@
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
-    font-family: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+    font-family: var(--font);
     background: #0a0e1a;
     touch-action: none;
     -webkit-user-select: none;
@@ -43,6 +56,27 @@
     height: 100%;
     display: block;
   }
+
+  /* ---------- Liquid Glass base ---------- */
+  .glass {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border-dim);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    isolation: isolate;
+  }
+  .glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.06) 32%, rgba(255,255,255,0) 55%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
   #hud {
     position: absolute;
     top: 0; left: 0; right: 0;
@@ -54,20 +88,19 @@
     z-index: 10;
   }
   .hud-box {
-    background: rgba(20, 20, 40, 0.55);
-    color: #fff;
-    padding: 7px 14px;
-    border-radius: 14px;
-    font-weight: bold;
+    color: var(--ink);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 700;
     font-size: clamp(14px, 3.6vw, 18px);
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-    backdrop-filter: blur(2px);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
     white-space: nowrap;
+    letter-spacing: 0.2px;
   }
   #ammoWrap {
     display: flex;
     gap: 4px;
-    margin-top: 4px;
+    margin-top: 5px;
     justify-content: flex-end;
   }
   .pellet-icon {
@@ -77,11 +110,12 @@
     background: radial-gradient(circle at 35% 35%, #fff9c4, #f4b400 60%, #b5850a);
     box-shadow: 0 0 3px rgba(0,0,0,0.5);
     flex-shrink: 0;
+    transition: opacity 0.2s, transform 0.2s;
   }
-  .pellet-icon.used { background: #555; box-shadow: none; opacity: 0.4; }
+  .pellet-icon.used { background: rgba(255,255,255,0.25); box-shadow: none; opacity: 0.5; transform: scale(0.8); }
   #timerBox { text-align: right; }
-  #timerVal { font-size: clamp(18px, 5vw, 26px); }
-  #timerVal.low { color: #ff6b6b; animation: pulse 0.6s infinite; }
+  #timerVal { font-size: clamp(18px, 5vw, 26px); font-variant-numeric: tabular-nums; }
+  #timerVal.low { color: var(--danger); animation: pulse 0.6s infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
 
   #centerMsg {
@@ -89,12 +123,10 @@
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
-    color: #fff;
+    color: var(--ink);
     z-index: 20;
-    background: rgba(15,15,30,0.78);
-    padding: clamp(16px,4vw,28px) clamp(18px,5vw,34px);
-    border-radius: 20px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    border-radius: 34px;
+    padding: clamp(20px,4.5vw,32px) clamp(20px,5.5vw,36px);
     width: min(92vw, 460px);
     max-height: 90dvh;
     overflow-y: auto;
@@ -103,63 +135,92 @@
   #centerMsg h1 {
     margin: 0 0 8px 0;
     font-size: clamp(26px, 7vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
     background: linear-gradient(90deg,#ffde59,#ff914d,#ff6b6b,#7ed6ff);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  #centerMsg p { font-size: clamp(13px, 3.6vw, 16px); margin: 6px 0; opacity: 0.9; }
-  #centerMsg .big { font-size: clamp(16px, 4.2vw, 20px); margin-top: 4px; }
+  #centerMsg p { font-size: clamp(13px, 3.6vw, 16px); margin: 6px 0; opacity: 0.85; font-weight: 500; }
+  #centerMsg .big { font-size: clamp(16px, 4.2vw, 20px); margin-top: 4px; font-weight: 700; opacity: 0.95; }
+
   #startBtn, #restartBtn, #saveScoreBtn {
-    margin-top: 14px;
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    margin-top: 16px;
     font-size: clamp(16px, 4.4vw, 20px);
-    font-weight: bold;
-    padding: 12px 30px;
-    border: none;
-    border-radius: 40px;
-    background: linear-gradient(180deg,#ffd25c,#ff9d2f);
-    color: #3a2400;
-    box-shadow: 0 4px 0 #b96a00, 0 6px 12px rgba(0,0,0,0.4);
+    font-weight: 700;
+    font-family: var(--font);
+    padding: 13px 34px;
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(120,190,255,0.9), var(--accent) 70%);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(10,132,255,0.45), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -6px 10px rgba(0,0,0,0.12);
     cursor: pointer;
     pointer-events: all;
     touch-action: manipulation;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
-  #startBtn:active, #restartBtn:active, #saveScoreBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b96a00; }
+  #startBtn:active, #restartBtn:active, #saveScoreBtn:active {
+    transform: scale(0.96);
+    box-shadow: 0 2px 8px rgba(10,132,255,0.4), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -3px 6px rgba(0,0,0,0.15);
+  }
 
-  #diffRow {
+  #diffRow.segmented {
+    position: relative;
     display: flex;
-    gap: 8px;
+    gap: 0;
     justify-content: center;
-    margin: 12px 0 4px;
-    flex-wrap: wrap;
+    margin: 14px auto 4px;
+    padding: 4px;
+    border-radius: 999px;
+    max-width: 340px;
+  }
+  #diffThumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: 60px;
+    border-radius: 999px;
+    background: var(--glass-fill-strong);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+    transition: left 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 0;
   }
   .diffBtn {
+    position: relative;
+    z-index: 1;
+    flex: 1;
     pointer-events: all;
     touch-action: manipulation;
-    border: 2px solid rgba(255,255,255,0.25);
-    background: rgba(255,255,255,0.08);
-    color: #fff;
-    padding: 8px 14px;
-    border-radius: 30px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.75);
+    padding: 8px 12px;
+    border-radius: 999px;
     font-size: clamp(12px, 3.2vw, 14px);
-    font-weight: bold;
+    font-weight: 700;
+    font-family: var(--font);
     cursor: pointer;
+    transition: color 0.25s;
+    white-space: nowrap;
   }
-  .diffBtn.active {
-    background: linear-gradient(180deg,#7ed6ff,#4dabf7);
-    color: #08283d;
-    border-color: #fff;
-  }
+  .diffBtn.active { color: #fff; }
 
   #leaderboard {
-    margin-top: 14px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(255,255,255,0.2);
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.22);
   }
   #leaderboard h2 {
     font-size: clamp(15px, 4vw, 18px);
-    margin: 0 0 6px;
+    margin: 0 0 8px;
     color: #ffd25c;
+    font-weight: 800;
   }
   .lbList {
     list-style: none;
@@ -172,39 +233,47 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 6px;
-    border-radius: 8px;
+    padding: 7px 10px;
+    border-radius: 12px;
+    margin-bottom: 3px;
   }
-  .lbList li:nth-child(odd) { background: rgba(255,255,255,0.06); }
-  .lbRank { width: 20px; opacity: 0.7; font-weight: bold; }
-  .lbName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lbDiff { opacity: 0.8; font-size: 0.85em; }
-  .lbScore { font-weight: bold; color: #ffe066; min-width: 44px; text-align: right; }
-  .lbEmpty { opacity: 0.7; font-size: 14px; }
+  .lbList li:nth-child(odd) { background: rgba(255,255,255,0.07); }
+  .lbRank { width: 20px; opacity: 0.65; font-weight: 700; }
+  .lbName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .lbDiff { opacity: 0.85; font-size: 0.85em; }
+  .lbScore { font-weight: 800; color: #ffe066; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .lbEmpty { opacity: 0.65; font-size: 14px; font-weight: 500; }
 
   #saveScoreForm {
-    margin-top: 14px;
+    margin-top: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   #nameInput {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     pointer-events: all;
-    font-size: 18px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    border: 2px solid #ffd25c;
+    font-family: var(--font);
+    font-size: 17px;
+    font-weight: 600;
+    padding: 11px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
     width: 80%;
     max-width: 220px;
     text-align: center;
     outline: none;
   }
+  #nameInput::placeholder { color: rgba(255,255,255,0.5); }
   #newHighBadge {
     color: #ffe066;
-    font-weight: 900;
+    font-weight: 800;
     font-size: clamp(15px,4vw,18px);
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
 
   #levelUpMsg {
@@ -214,8 +283,9 @@
     transform: translate(-50%, -50%) scale(0.5);
     color: #fff;
     font-size: clamp(30px, 8vw, 44px);
-    font-weight: 900;
-    text-shadow: 2px 2px 0 #ff6b6b, 0 0 20px rgba(255,255,255,0.8);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.35), 0 0 24px rgba(120,190,255,0.7);
     z-index: 15;
     opacity: 0;
     pointer-events: none;
@@ -224,22 +294,24 @@
 
   .floatText {
     position: absolute;
-    font-weight: 900;
+    font-weight: 800;
     pointer-events: none;
     z-index: 12;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
 
   #reloadHint {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     position: absolute;
     bottom: calc(14px + var(--safe-b));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
-    background: rgba(0,0,0,0.55);
-    padding: 8px 18px;
-    border-radius: 20px;
+    padding: 9px 20px;
+    border-radius: 999px;
     font-size: clamp(13px, 3.6vw, 15px);
+    font-weight: 600;
     z-index: 10;
     opacity: 0;
     transition: opacity 0.2s;
@@ -250,44 +322,48 @@
   #reloadHint.show { opacity: 1; }
 
   #reloadBtn, #muteBtn {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     position: absolute;
     bottom: calc(14px + var(--safe-b));
     z-index: 10;
-    background: rgba(20,20,40,0.55);
     color: #fff;
     border: none;
     cursor: pointer;
     touch-action: manipulation;
+    transition: transform 0.15s ease, background 0.2s ease;
   }
   #muteBtn {
     right: calc(14px + var(--safe-r));
     border-radius: 50%;
-    width: 46px;
-    height: 46px;
+    width: 48px;
+    height: 48px;
     font-size: 20px;
   }
   #reloadBtn {
     left: calc(14px + var(--safe-l));
-    border-radius: 24px;
-    padding: 10px 16px;
+    border-radius: 999px;
+    padding: 11px 18px;
     font-size: 15px;
-    font-weight: bold;
+    font-weight: 700;
+    font-family: var(--font);
     display: flex;
     align-items: center;
     gap: 6px;
   }
-  #reloadBtn:active, #muteBtn:active { transform: scale(0.94); }
+  #reloadBtn:active, #muteBtn:active { transform: scale(0.92); }
   #reloadBtn.urgent {
-    background: rgba(255,80,80,0.85);
+    background: rgba(255,69,58,0.55);
+    border-color: rgba(255,255,255,0.6);
     animation: pulse 0.6s infinite;
   }
 
   .hidden { display: none !important; }
 
   @media (max-width: 420px) {
-    .hud-box { padding: 6px 10px; border-radius: 12px; }
+    .hud-box { padding: 7px 12px; border-radius: 16px; }
     #reloadBtn span.reloadLabel { display: none; }
-    #reloadBtn { padding: 12px; border-radius: 50%; width: 46px; height: 46px; justify-content: center; }
+    #reloadBtn { padding: 12px; border-radius: 50%; width: 48px; height: 48px; justify-content: center; }
   }
 </style>
 </head>
@@ -296,28 +372,29 @@
   <canvas id="canvas"></canvas>
 
   <div id="hud">
-    <div class="hud-box">
+    <div class="hud-box glass" style="border-radius:20px;">
       SCORE: <span id="scoreVal">0</span><br>
       Level <span id="levelVal">1</span>
     </div>
-    <div class="hud-box" id="timerBox">
+    <div class="hud-box glass" id="timerBox" style="border-radius:20px;">
       <span id="timerVal">60</span>s
       <div id="ammoWrap"></div>
     </div>
   </div>
 
   <div id="levelUpMsg">LEVEL UP!</div>
-  <div id="reloadHint">Tap here (or press R) to reload!</div>
+  <div id="reloadHint" class="glass" style="border-radius:999px;">Tap here (or press R) to reload!</div>
 
-  <button id="reloadBtn" title="Reload">🔄 <span class="reloadLabel">Reload</span></button>
-  <button id="muteBtn" title="Mute/unmute">🔊</button>
+  <button id="reloadBtn" class="glass" style="border-radius:999px;" title="Reload">🔄 <span class="reloadLabel">Reload</span></button>
+  <button id="muteBtn" class="glass" style="border-radius:50%;" title="Mute/unmute">🔊</button>
 
-  <div id="centerMsg">
+  <div id="centerMsg" class="glass" style="border-radius:34px;">
     <h1>🎈 Pellet Pop Carnival 🎯</h1>
     <p>Aim your pellet gun and pop the balloons and targets before time runs out!</p>
     <p>Tap/click to shoot. Tap the reload button (or press <b>R</b>) to reload.</p>
     <p class="big">Watch out — don't shoot the birds or the friendly mascot!</p>
-    <div id="diffRow">
+    <div id="diffRow" class="segmented glass" style="border-radius:999px;">
+      <div id="diffThumb"></div>
       <button class="diffBtn" data-diff="EASY">Easy 🐣</button>
       <button class="diffBtn" data-diff="NORMAL">Normal 🎯</button>
       <button class="diffBtn" data-diff="HARD">Hard 🔥</button>
@@ -356,7 +433,11 @@
     H = canvas.height = game.clientHeight;
   }
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => {
+    resize();
+    const activeBtn = diffRow.querySelector('.diffBtn.active');
+    if (activeBtn) moveDiffThumb(activeBtn);
+  });
 
   // ---------- Audio (simple WebAudio synthesized SFX, no external files) ----------
   let audioCtx = null;
@@ -425,12 +506,20 @@
   } catch (e) {}
   let DIFF = DIFFICULTIES[diffKey];
 
+  const diffThumb = document.getElementById('diffThumb');
+  function moveDiffThumb(btn) {
+    if (!btn || !diffThumb) return;
+    diffThumb.style.left = btn.offsetLeft + 'px';
+    diffThumb.style.width = btn.offsetWidth + 'px';
+  }
   function setDifficulty(key) {
     diffKey = key;
     DIFF = DIFFICULTIES[key];
     try { localStorage.setItem('pelletPopDiff', key); } catch (e) {}
-    Array.from(diffRow.children).forEach(btn => {
+    const buttons = diffRow.querySelectorAll('.diffBtn');
+    buttons.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.diff === key);
+      if (btn.dataset.diff === key) moveDiffThumb(btn);
     });
   }
   diffRow.addEventListener('click', (e) => {
