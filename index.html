@@ -2,28 +2,49 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pellet Pop Carnival</title>
 <style>
   :root {
     --sky-top: #7ec8ff;
     --sky-bottom: #cdeeff;
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+
+    /* Liquid Glass tokens */
+    --glass-fill: rgba(255,255,255,0.14);
+    --glass-fill-strong: rgba(255,255,255,0.22);
+    --glass-border: rgba(255,255,255,0.55);
+    --glass-border-dim: rgba(255,255,255,0.28);
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 8px rgba(0,0,0,0.08);
+    --glass-blur: blur(24px) saturate(180%);
+    --accent: #0a84ff;
+    --accent-2: #64d2ff;
+    --danger: #ff453a;
+    --ink: #fff;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0;
     height: 100%;
     overflow: hidden;
-    font-family: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+    overscroll-behavior: none;
+    font-family: var(--font);
     background: #0a0e1a;
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
   }
   #game {
     position: relative;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     background: linear-gradient(to bottom, var(--sky-top) 0%, var(--sky-bottom) 65%, #8fd68f 65%, #6bbf59 100%);
     overflow: hidden;
     cursor: crosshair;
@@ -35,30 +56,52 @@
     height: 100%;
     display: block;
   }
+
+  /* ---------- Liquid Glass base ---------- */
+  .glass {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border-dim);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    isolation: isolate;
+  }
+  .glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.06) 32%, rgba(255,255,255,0) 55%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
   #hud {
     position: absolute;
     top: 0; left: 0; right: 0;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: 12px 16px;
+    padding: calc(10px + var(--safe-t)) calc(12px + var(--safe-r)) 0 calc(12px + var(--safe-l));
     pointer-events: none;
     z-index: 10;
   }
   .hud-box {
-    background: rgba(20, 20, 40, 0.55);
-    color: #fff;
+    color: var(--ink);
     padding: 8px 16px;
-    border-radius: 14px;
-    font-weight: bold;
-    font-size: 18px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
-    backdrop-filter: blur(2px);
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: clamp(14px, 3.6vw, 18px);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+    white-space: nowrap;
+    letter-spacing: 0.2px;
   }
   #ammoWrap {
     display: flex;
     gap: 4px;
-    margin-top: 4px;
+    margin-top: 5px;
+    justify-content: flex-end;
   }
   .pellet-icon {
     width: 10px;
@@ -66,11 +109,13 @@
     border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #fff9c4, #f4b400 60%, #b5850a);
     box-shadow: 0 0 3px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+    transition: opacity 0.2s, transform 0.2s;
   }
-  .pellet-icon.used { background: #555; box-shadow: none; opacity: 0.4; }
+  .pellet-icon.used { background: rgba(255,255,255,0.25); box-shadow: none; opacity: 0.5; transform: scale(0.8); }
   #timerBox { text-align: right; }
-  #timerVal { font-size: 26px; }
-  #timerVal.low { color: #ff6b6b; animation: pulse 0.6s infinite; }
+  #timerVal { font-size: clamp(18px, 5vw, 26px); font-variant-numeric: tabular-nums; }
+  #timerVal.low { color: var(--danger); animation: pulse 0.6s infinite; }
   @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
 
   #centerMsg {
@@ -78,37 +123,158 @@
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
-    color: #fff;
+    color: var(--ink);
     z-index: 20;
-    background: rgba(15,15,30,0.72);
-    padding: 28px 34px;
-    border-radius: 20px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    border-radius: 34px;
+    padding: clamp(20px,4.5vw,32px) clamp(20px,5.5vw,36px);
+    width: min(92vw, 460px);
+    max-height: 90dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   #centerMsg h1 {
     margin: 0 0 8px 0;
-    font-size: 40px;
+    font-size: clamp(26px, 7vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
     background: linear-gradient(90deg,#ffde59,#ff914d,#ff6b6b,#7ed6ff);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  #centerMsg p { font-size: 16px; margin: 6px 0; opacity: 0.9; }
-  #centerMsg .big { font-size: 20px; margin-top: 4px; }
-  #startBtn, #restartBtn {
+  #centerMsg p { font-size: clamp(13px, 3.6vw, 16px); margin: 6px 0; opacity: 0.85; font-weight: 500; }
+  #centerMsg .big { font-size: clamp(16px, 4.2vw, 20px); margin-top: 4px; font-weight: 700; opacity: 0.95; }
+
+  #startBtn, #restartBtn, #saveScoreBtn {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     margin-top: 16px;
-    font-size: 20px;
-    font-weight: bold;
-    padding: 12px 30px;
-    border: none;
-    border-radius: 40px;
-    background: linear-gradient(180deg,#ffd25c,#ff9d2f);
-    color: #3a2400;
-    box-shadow: 0 4px 0 #b96a00, 0 6px 12px rgba(0,0,0,0.4);
+    font-size: clamp(16px, 4.4vw, 20px);
+    font-weight: 700;
+    font-family: var(--font);
+    padding: 13px 34px;
+    border: 1px solid rgba(255,255,255,0.55);
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(120,190,255,0.9), var(--accent) 70%);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(10,132,255,0.45), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -6px 10px rgba(0,0,0,0.12);
     cursor: pointer;
     pointer-events: all;
+    touch-action: manipulation;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
-  #startBtn:active, #restartBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b96a00; }
+  #startBtn:active, #restartBtn:active, #saveScoreBtn:active {
+    transform: scale(0.96);
+    box-shadow: 0 2px 8px rgba(10,132,255,0.4), inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -3px 6px rgba(0,0,0,0.15);
+  }
+
+  #diffRow.segmented {
+    position: relative;
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    margin: 14px auto 4px;
+    padding: 4px;
+    border-radius: 999px;
+    max-width: 340px;
+  }
+  #diffThumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: 60px;
+    border-radius: 999px;
+    background: var(--glass-fill-strong);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+    transition: left 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 0;
+  }
+  .diffBtn {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    pointer-events: all;
+    touch-action: manipulation;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.75);
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-size: clamp(12px, 3.2vw, 14px);
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: color 0.25s;
+    white-space: nowrap;
+  }
+  .diffBtn.active { color: #fff; }
+
+  #leaderboard {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.22);
+  }
+  #leaderboard h2 {
+    font-size: clamp(15px, 4vw, 18px);
+    margin: 0 0 8px;
+    color: #ffd25c;
+    font-weight: 800;
+  }
+  .lbList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    font-size: clamp(13px, 3.4vw, 15px);
+  }
+  .lbList li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 12px;
+    margin-bottom: 3px;
+  }
+  .lbList li:nth-child(odd) { background: rgba(255,255,255,0.07); }
+  .lbRank { width: 20px; opacity: 0.65; font-weight: 700; }
+  .lbName { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .lbDiff { opacity: 0.85; font-size: 0.85em; }
+  .lbScore { font-weight: 800; color: #ffe066; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .lbEmpty { opacity: 0.65; font-size: 14px; font-weight: 500; }
+
+  #saveScoreForm {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  #nameInput {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    pointer-events: all;
+    font-family: var(--font);
+    font-size: 17px;
+    font-weight: 600;
+    padding: 11px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    width: 80%;
+    max-width: 220px;
+    text-align: center;
+    outline: none;
+  }
+  #nameInput::placeholder { color: rgba(255,255,255,0.5); }
+  #newHighBadge {
+    color: #ffe066;
+    font-weight: 800;
+    font-size: clamp(15px,4vw,18px);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
 
   #levelUpMsg {
     position: absolute;
@@ -116,54 +282,89 @@
     left: 50%;
     transform: translate(-50%, -50%) scale(0.5);
     color: #fff;
-    font-size: 44px;
-    font-weight: 900;
-    text-shadow: 2px 2px 0 #ff6b6b, 0 0 20px rgba(255,255,255,0.8);
+    font-size: clamp(30px, 8vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.35), 0 0 24px rgba(120,190,255,0.7);
     z-index: 15;
     opacity: 0;
     pointer-events: none;
+    white-space: nowrap;
   }
 
   .floatText {
     position: absolute;
-    font-weight: 900;
+    font-weight: 800;
     pointer-events: none;
     z-index: 12;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
 
   #reloadHint {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     position: absolute;
-    bottom: 14px;
+    bottom: calc(14px + var(--safe-b));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
-    background: rgba(0,0,0,0.5);
-    padding: 8px 18px;
-    border-radius: 20px;
-    font-size: 15px;
+    padding: 9px 20px;
+    border-radius: 999px;
+    font-size: clamp(13px, 3.6vw, 15px);
+    font-weight: 600;
     z-index: 10;
     opacity: 0;
     transition: opacity 0.2s;
+    pointer-events: all;
+    touch-action: manipulation;
+    white-space: nowrap;
   }
   #reloadHint.show { opacity: 1; }
 
-  #muteBtn {
+  #reloadBtn, #muteBtn {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     position: absolute;
-    bottom: 14px;
-    right: 14px;
+    bottom: calc(14px + var(--safe-b));
     z-index: 10;
-    background: rgba(20,20,40,0.55);
     color: #fff;
     border: none;
-    border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    font-size: 20px;
     cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.15s ease, background 0.2s ease;
+  }
+  #muteBtn {
+    right: calc(14px + var(--safe-r));
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+  #reloadBtn {
+    left: calc(14px + var(--safe-l));
+    border-radius: 999px;
+    padding: 11px 18px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #reloadBtn:active, #muteBtn:active { transform: scale(0.92); }
+  #reloadBtn.urgent {
+    background: rgba(255,69,58,0.55);
+    border-color: rgba(255,255,255,0.6);
+    animation: pulse 0.6s infinite;
   }
 
   .hidden { display: none !important; }
+
+  @media (max-width: 420px) {
+    .hud-box { padding: 7px 12px; border-radius: 16px; }
+    #reloadBtn span.reloadLabel { display: none; }
+    #reloadBtn { padding: 12px; border-radius: 50%; width: 48px; height: 48px; justify-content: center; }
+  }
 </style>
 </head>
 <body>
@@ -171,27 +372,38 @@
   <canvas id="canvas"></canvas>
 
   <div id="hud">
-    <div class="hud-box">
+    <div class="hud-box glass" style="border-radius:20px;">
       SCORE: <span id="scoreVal">0</span><br>
       Level <span id="levelVal">1</span>
     </div>
-    <div class="hud-box" id="timerBox">
+    <div class="hud-box glass" id="timerBox" style="border-radius:20px;">
       <span id="timerVal">60</span>s
       <div id="ammoWrap"></div>
     </div>
   </div>
 
   <div id="levelUpMsg">LEVEL UP!</div>
-  <div id="reloadHint">Tap R or the button below to reload!</div>
+  <div id="reloadHint" class="glass" style="border-radius:999px;">Tap here (or press R) to reload!</div>
 
-  <button id="muteBtn" title="Mute/unmute">🔊</button>
+  <button id="reloadBtn" class="glass" style="border-radius:999px;" title="Reload">🔄 <span class="reloadLabel">Reload</span></button>
+  <button id="muteBtn" class="glass" style="border-radius:50%;" title="Mute/unmute">🔊</button>
 
-  <div id="centerMsg">
+  <div id="centerMsg" class="glass" style="border-radius:34px;">
     <h1>🎈 Pellet Pop Carnival 🎯</h1>
     <p>Aim your pellet gun and pop the balloons and targets before time runs out!</p>
-    <p>Click/tap to shoot. Press <b>R</b> or the reload button to reload.</p>
+    <p>Tap/click to shoot. Tap the reload button (or press <b>R</b>) to reload.</p>
     <p class="big">Watch out — don't shoot the birds or the friendly mascot!</p>
+    <div id="diffRow" class="segmented glass" style="border-radius:999px;">
+      <div id="diffThumb"></div>
+      <button class="diffBtn" data-diff="EASY">Easy 🐣</button>
+      <button class="diffBtn" data-diff="NORMAL">Normal 🎯</button>
+      <button class="diffBtn" data-diff="HARD">Hard 🔥</button>
+    </div>
     <button id="startBtn">Start Game</button>
+    <div id="leaderboard">
+      <h2>🏆 Top Scores</h2>
+      <div id="lbContent"></div>
+    </div>
   </div>
 </div>
 
@@ -208,7 +420,12 @@
   const startBtn = document.getElementById('startBtn');
   const levelUpMsg = document.getElementById('levelUpMsg');
   const reloadHint = document.getElementById('reloadHint');
+  const reloadBtn = document.getElementById('reloadBtn');
   const muteBtn = document.getElementById('muteBtn');
+  const diffRow = document.getElementById('diffRow');
+  const lbContent = document.getElementById('lbContent');
+
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
   let W, H;
   function resize() {
@@ -216,7 +433,11 @@
     H = canvas.height = game.clientHeight;
   }
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => {
+    resize();
+    const activeBtn = diffRow.querySelector('.diffBtn.active');
+    if (activeBtn) moveDiffThumb(activeBtn);
+  });
 
   // ---------- Audio (simple WebAudio synthesized SFX, no external files) ----------
   let audioCtx = null;
@@ -225,6 +446,7 @@
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
   }
   function beep(freq, dur, type, vol, glideTo) {
     if (muted) return;
@@ -246,22 +468,73 @@
   function sfxReload() { beep(300, 0.1, 'sine', 0.1, 500); }
   function sfxLevelUp() { beep(523, 0.1, 'sine', 0.2, 1046); setTimeout(()=>beep(659,0.15,'sine',0.2,1318),100); }
   function sfxEmpty() { beep(150, 0.08, 'square', 0.05); }
+  function sfxHighScore() { beep(660,0.1,'sine',0.2,880); setTimeout(()=>beep(880,0.12,'sine',0.2,1108),110); setTimeout(()=>beep(1108,0.16,'sine',0.22,1318),230); }
 
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     muteBtn.textContent = muted ? '🔇' : '🔊';
   });
 
-  // ---------- Game constants ----------
-  const MAG_SIZE = 6;
-  const RELOAD_TIME = 1100; // ms
-  const GAME_TIME = 60; // seconds
+  // ---------- Difficulty tuning ----------
+  const DIFFICULTIES = {
+    EASY: {
+      label: 'Easy', time: 75, magSize: 7, reloadTime: 850,
+      baseSpeed: 42, speedPerLevel: 5, maxSpeedMul: 1.4,
+      badBase: 0.05, badPerLevel: 0.005, badCap: 0.14,
+      spawnBase: 1050, spawnPerLevel: 70, spawnMin: 560,
+      maxLevel: 4, hitForgiveness: 16,
+    },
+    NORMAL: {
+      label: 'Normal', time: 60, magSize: 6, reloadTime: 1100,
+      baseSpeed: 58, speedPerLevel: 9, maxSpeedMul: 1.7,
+      badBase: 0.11, badPerLevel: 0.009, badCap: 0.26,
+      spawnBase: 900, spawnPerLevel: 95, spawnMin: 400,
+      maxLevel: 5, hitForgiveness: 8,
+    },
+    HARD: {
+      label: 'Hard', time: 60, magSize: 5, reloadTime: 1300,
+      baseSpeed: 76, speedPerLevel: 12, maxSpeedMul: 2.0,
+      badBase: 0.17, badPerLevel: 0.013, badCap: 0.34,
+      spawnBase: 760, spawnPerLevel: 95, spawnMin: 300,
+      maxLevel: 6, hitForgiveness: 2,
+    },
+  };
+  let diffKey = 'NORMAL';
+  try {
+    const saved = localStorage.getItem('pelletPopDiff');
+    if (saved && DIFFICULTIES[saved]) diffKey = saved;
+  } catch (e) {}
+  let DIFF = DIFFICULTIES[diffKey];
+
+  const diffThumb = document.getElementById('diffThumb');
+  function moveDiffThumb(btn) {
+    if (!btn || !diffThumb) return;
+    diffThumb.style.left = btn.offsetLeft + 'px';
+    diffThumb.style.width = btn.offsetWidth + 'px';
+  }
+  function setDifficulty(key) {
+    diffKey = key;
+    DIFF = DIFFICULTIES[key];
+    try { localStorage.setItem('pelletPopDiff', key); } catch (e) {}
+    const buttons = diffRow.querySelectorAll('.diffBtn');
+    buttons.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.diff === key);
+      if (btn.dataset.diff === key) moveDiffThumb(btn);
+    });
+  }
+  diffRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('.diffBtn');
+    if (!btn) return;
+    setDifficulty(btn.dataset.diff);
+  });
+  setDifficulty(diffKey);
+
   const TARGET_TYPES = {
     balloonRed:    { emoji: '🎈', color: '#ff5757', points: 10,  radius: 26, speedMul: 1 },
     balloonBlue:   { emoji: '🎈', color: '#4dabf7', points: 10,  radius: 26, speedMul: 1 },
-    balloonGold:   { emoji: '🎈', color: '#ffd43b', points: 30,  radius: 22, speedMul: 1.6 },
-    duck:          { emoji: '🦆', color: '#ffe066', points: 20,  radius: 24, speedMul: 1.3 },
-    star:          { emoji: '⭐', color: '#fff176', points: 50,  radius: 20, speedMul: 2.0 },
+    balloonGold:   { emoji: '🎈', color: '#ffd43b', points: 30,  radius: 22, speedMul: 1.5 },
+    duck:          { emoji: '🦆', color: '#ffe066', points: 20,  radius: 24, speedMul: 1.25 },
+    star:          { emoji: '⭐', color: '#fff176', points: 50,  radius: 20, speedMul: 1.8 },
     can:           { emoji: '🥫', color: '#adb5bd', points: 15,  radius: 22, speedMul: 0.8 },
   };
   const BAD_TYPES = {
@@ -269,40 +542,82 @@
     mascot: { emoji: '🐻', points: -50 },
   };
 
+  // ---------- Leaderboard (localStorage) ----------
+  const LB_KEY = 'pelletPopScores';
+  function loadScores() {
+    try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function saveScoresArr(arr) {
+    try { localStorage.setItem(LB_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function diffEmoji(key) {
+    return key === 'EASY' ? '🐣' : key === 'HARD' ? '🔥' : '🎯';
+  }
+  function qualifiesForBoard(score) {
+    if (score <= 0) return false;
+    const arr = loadScores();
+    if (arr.length < 10) return true;
+    return score > arr[arr.length - 1].score;
+  }
+  function addScore(name, sc, dKey, lvl) {
+    const arr = loadScores();
+    arr.push({ name: name.slice(0, 12) || 'Player', score: sc, diff: dKey, level: lvl, date: Date.now() });
+    arr.sort((a, b) => b.score - a.score);
+    arr.length = Math.min(arr.length, 10);
+    saveScoresArr(arr);
+    return arr;
+  }
+  function renderLeaderboard(container) {
+    const arr = loadScores();
+    if (!arr.length) {
+      container.innerHTML = '<p class="lbEmpty">No scores yet — be the first!</p>';
+      return;
+    }
+    container.innerHTML = '<ol class="lbList">' + arr.map((s, i) =>
+      `<li><span class="lbRank">${i+1}.</span><span class="lbName">${escapeHtml(s.name)}</span><span class="lbDiff">${diffEmoji(s.diff)}</span><span class="lbScore">${s.score}</span></li>`
+    ).join('') + '</ol>';
+  }
+  renderLeaderboard(lbContent);
+
   // ---------- State ----------
   let state = 'menu'; // menu | playing | gameover
   let score = 0;
   let level = 1;
-  let timeLeft = GAME_TIME;
-  let ammo = MAG_SIZE;
+  let timeLeft = DIFF.time;
+  let ammo = DIFF.magSize;
   let reloading = false;
   let reloadStart = 0;
   let entities = [];
   let particles = [];
   let floatTexts = [];
   let lastSpawn = 0;
-  let spawnInterval = 900;
+  let spawnInterval = DIFF.spawnBase;
   let lastFrame = 0;
-  let timerAccum = 0;
   let comboCount = 0;
   let comboTimer = 0;
   let shakeTime = 0;
   let shakeMag = 0;
   let crosshair = { x: W/2, y: H/2 };
+  let showCrosshair = !isTouch;
 
   function resetGame() {
     score = 0;
     level = 1;
-    timeLeft = GAME_TIME;
-    ammo = MAG_SIZE;
+    timeLeft = DIFF.time;
+    ammo = DIFF.magSize;
     reloading = false;
     entities = [];
     particles = [];
     floatTexts = [];
     lastSpawn = 0;
-    spawnInterval = 900;
+    spawnInterval = DIFF.spawnBase;
     comboCount = 0;
     comboTimer = 0;
+    reloadBtn.classList.remove('urgent');
     updateHud();
   }
 
@@ -312,18 +627,20 @@
     timerEl.textContent = Math.ceil(timeLeft);
     timerEl.classList.toggle('low', timeLeft <= 10);
     ammoWrap.innerHTML = '';
-    for (let i = 0; i < MAG_SIZE; i++) {
+    for (let i = 0; i < DIFF.magSize; i++) {
       const d = document.createElement('div');
       d.className = 'pellet-icon' + (i < ammo ? '' : ' used');
       ammoWrap.appendChild(d);
     }
+    reloadBtn.classList.toggle('urgent', ammo === 0 && !reloading);
   }
 
   // ---------- Entity spawning ----------
   function randRange(a,b){ return a + Math.random()*(b-a); }
 
   function spawnEntity() {
-    const isBad = Math.random() < Math.min(0.12 + level*0.01, 0.28);
+    const badChance = Math.min(DIFF.badBase + level * DIFF.badPerLevel, DIFF.badCap);
+    const isBad = Math.random() < badChance;
     let typeKey, typeDef, bad = false;
     if (isBad) {
       const keys = Object.keys(BAD_TYPES);
@@ -332,7 +649,6 @@
       bad = true;
     } else {
       const keys = Object.keys(TARGET_TYPES);
-      // weight commoner targets higher
       const weights = { balloonRed:5, balloonBlue:5, can:4, duck:3, balloonGold:2, star:1 };
       const pool = [];
       keys.forEach(k => { for(let i=0;i<weights[k];i++) pool.push(k); });
@@ -343,7 +659,8 @@
     const radius = bad ? 24 : typeDef.radius;
     const fromLeft = Math.random() < 0.5;
     const y = randRange(H*0.18, H*0.75);
-    const baseSpeed = (60 + level*10) * (bad ? 1.4 : (typeDef.speedMul||1));
+    const speedMul = Math.min(bad ? 1.3 : (typeDef.speedMul || 1), DIFF.maxSpeedMul);
+    const baseSpeed = (DIFF.baseSpeed + level * DIFF.speedPerLevel) * speedMul;
     const dir = fromLeft ? 1 : -1;
     const x = fromLeft ? -radius*2 : W + radius*2;
     const vy = randRange(-20, 20);
@@ -383,7 +700,9 @@
   function getPos(e) {
     const rect = game.getBoundingClientRect();
     let clientX, clientY;
-    if (e.touches && e.touches.length) {
+    if (e.changedTouches && e.changedTouches.length) {
+      clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
+    } else if (e.touches && e.touches.length) {
       clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
     } else {
       clientX = e.clientX; clientY = e.clientY;
@@ -393,11 +712,12 @@
 
   function tryReload() {
     if (state !== 'playing') return;
-    if (reloading || ammo === MAG_SIZE) return;
+    if (reloading || ammo === DIFF.magSize) return;
     reloading = true;
     reloadStart = performance.now();
     sfxReload();
     reloadHint.classList.remove('show');
+    reloadBtn.classList.remove('urgent');
   }
 
   function shoot(x, y) {
@@ -406,6 +726,7 @@
     if (ammo <= 0) {
       sfxEmpty();
       reloadHint.classList.add('show');
+      reloadBtn.classList.add('urgent');
       return;
     }
     ammo--;
@@ -413,7 +734,6 @@
     sfxShoot();
     shakeTime = 0.08; shakeMag = 4;
 
-    // muzzle flash particle burst at crosshair
     for (let i=0;i<4;i++){
       particles.push({
         x, y, vx: randRange(-40,40), vy: randRange(-40,40),
@@ -421,13 +741,14 @@
       });
     }
 
-    // hit test - topmost (last drawn) first
+    // hit test with forgiveness radius (bigger on touch / easy mode for younger players)
+    const forgiveness = DIFF.hitForgiveness + (isTouch ? 10 : 0);
     let hit = null;
     for (let i = entities.length - 1; i >= 0; i--) {
       const en = entities[i];
       if (!en.alive) continue;
       const dx = en.x - x, dy = en.y - y;
-      if (Math.sqrt(dx*dx+dy*dy) <= en.radius + 6) { hit = en; break; }
+      if (Math.sqrt(dx*dx+dy*dy) <= en.radius + forgiveness) { hit = en; break; }
     }
 
     if (hit) {
@@ -454,21 +775,25 @@
     }
 
     if (ammo === 0) {
-      setTimeout(() => { if (state==='playing') reloadHint.classList.add('show'); }, 200);
+      setTimeout(() => { if (state==='playing') { reloadHint.classList.add('show'); reloadBtn.classList.add('urgent'); } }, 200);
     }
   }
 
   game.addEventListener('mousedown', (e) => {
     if (state !== 'playing') return;
     const p = getPos(e);
+    crosshair = p;
     shoot(p.x, p.y);
   });
   game.addEventListener('touchstart', (e) => {
     if (state !== 'playing') return;
+    if (e.target.closest('#reloadBtn, #muteBtn, #reloadHint')) return;
     e.preventDefault();
     const p = getPos(e);
     crosshair = p;
+    showCrosshair = true;
     shoot(p.x, p.y);
+    setTimeout(() => { showCrosshair = false; }, 250);
   }, { passive: false });
   game.addEventListener('mousemove', (e) => {
     crosshair = getPos(e);
@@ -479,6 +804,8 @@
   });
 
   reloadHint.addEventListener('click', tryReload);
+  reloadBtn.addEventListener('click', tryReload);
+  reloadBtn.addEventListener('touchend', (e) => { e.preventDefault(); tryReload(); }, { passive: false });
 
   // ---------- Main loop ----------
   function update(dt, now) {
@@ -491,41 +818,35 @@
       return;
     }
 
-    // level progression every 15s
-    const newLevel = Math.min(5, 1 + Math.floor((GAME_TIME - timeLeft) / 15));
+    const newLevel = Math.min(DIFF.maxLevel, 1 + Math.floor((DIFF.time - timeLeft) / 15));
     if (newLevel !== level) {
       level = newLevel;
-      spawnInterval = Math.max(360, 900 - level*110);
+      spawnInterval = Math.max(DIFF.spawnMin, DIFF.spawnBase - level * DIFF.spawnPerLevel);
       triggerLevelUp();
     }
 
-    // reload handling
-    if (reloading && now - reloadStart >= RELOAD_TIME) {
+    if (reloading && now - reloadStart >= DIFF.reloadTime) {
       reloading = false;
-      ammo = MAG_SIZE;
+      ammo = DIFF.magSize;
       updateHud();
     }
 
-    // combo timer decay
     if (comboTimer > 0) {
       comboTimer -= dt;
       if (comboTimer <= 0) comboCount = 0;
     }
 
-    // spawn
     if (now - lastSpawn > spawnInterval) {
       lastSpawn = now;
       spawnEntity();
     }
 
-    // move entities
     entities.forEach(en => {
       en.x += en.vx * dt;
       en.y += en.vy * dt + Math.sin((now/300) + en.wobble) * 0.6;
     });
     entities = entities.filter(en => en.x > -100 && en.x < W + 100);
 
-    // particles
     particles.forEach(p => {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -560,7 +881,6 @@
   }
 
   function drawBackgroundDecor(now) {
-    // sun
     ctx.save();
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#fff6b0';
@@ -569,7 +889,6 @@
     ctx.fill();
     ctx.restore();
 
-    // clouds
     ctx.save();
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = '#ffffff';
@@ -603,7 +922,7 @@
   }
 
   function drawCrosshair() {
-    if (state !== 'playing') return;
+    if (state !== 'playing' || !showCrosshair) return;
     const { x, y } = crosshair;
     ctx.save();
     ctx.strokeStyle = reloading ? 'rgba(255,80,80,0.9)' : 'rgba(255,255,255,0.9)';
@@ -631,7 +950,6 @@
 
     drawBackgroundDecor(now);
 
-    // ground details (grass bumps)
     ctx.save();
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     for (let i=0;i<6;i++){
@@ -692,21 +1010,54 @@
   function endGame() {
     state = 'gameover';
     reloadHint.classList.remove('show');
+    reloadBtn.classList.remove('urgent');
     let msg;
     if (score >= 500) msg = "Sharpshooter Champion! 🏆";
     else if (score >= 300) msg = "Awesome Aim! 🌟";
     else if (score >= 150) msg = "Nice Shooting! 🎯";
     else msg = "Good Try! Play Again! 🎈";
 
+    const qualifies = qualifiesForBoard(score);
+
     centerMsg.innerHTML = `
       <h1>Time's Up!</h1>
       <p class="big">${msg}</p>
-      <p>Final Score: <b>${score}</b></p>
-      <p>You reached Level ${level}</p>
-      <button id="restartBtn">Play Again</button>
+      <p>Final Score: <b>${score}</b> &nbsp;|&nbsp; Level ${level} &nbsp;|&nbsp; ${DIFF.label}</p>
+      ${qualifies ? `
+        <div id="saveScoreForm">
+          <div id="newHighBadge">🎉 New Top-10 Score!</div>
+          <input id="nameInput" type="text" placeholder="Your name" maxlength="12" autocomplete="off">
+          <button id="saveScoreBtn">Save Score</button>
+        </div>
+      ` : `<button id="restartBtn">Play Again</button>`}
+      <div id="leaderboard">
+        <h2>🏆 Top Scores</h2>
+        <div id="lbContent"></div>
+      </div>
     `;
     centerMsg.classList.remove('hidden');
-    document.getElementById('restartBtn').addEventListener('click', startGame);
+
+    const lbEl = document.getElementById('lbContent');
+    renderLeaderboard(lbEl);
+
+    if (qualifies) {
+      const nameInput = document.getElementById('nameInput');
+      const saveBtn = document.getElementById('saveScoreBtn');
+      sfxHighScore();
+      const doSave = () => {
+        const name = (nameInput.value || 'Player').trim() || 'Player';
+        addScore(name, score, diffKey, level);
+        renderLeaderboard(lbEl);
+        const form = document.getElementById('saveScoreForm');
+        form.innerHTML = '<button id="restartBtn">Play Again</button>';
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+      };
+      saveBtn.addEventListener('click', doSave);
+      nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); });
+      setTimeout(() => nameInput.focus(), 50);
+    } else {
+      document.getElementById('restartBtn').addEventListener('click', startGame);
+    }
   }
 
   startBtn.addEventListener('click', startGame);
