@@ -178,6 +178,26 @@
   }
   #goldenBanner.show { opacity: 1; transform: translateX(-50%) scale(1); animation: pulse 0.7s infinite; }
 
+  #brainBanner {
+    position: absolute;
+    top: calc(84px + var(--safe-t));
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    color: #fff;
+    padding: 9px 24px;
+    border-radius: 999px;
+    font-size: clamp(16px, 4.6vw, 22px);
+    font-weight: 800;
+    z-index: 12;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  #brainBanner.show { opacity: 1; transform: translateX(-50%) scale(1); }
+  #brainBanner .brainTimer { opacity: 0.75; font-size: 0.8em; margin-left: 8px; }
+
   #centerMsg {
     position: absolute;
     top: 50%; left: 50%;
@@ -485,6 +505,7 @@
 
   <div id="levelUpMsg">LEVEL UP!</div>
   <div id="goldenBanner">🌟 GOLDEN ROUND ×2 🌟</div>
+  <div id="brainBanner" class="glass" style="border-radius:999px;"></div>
   <div id="reloadHint" class="glass" style="border-radius:999px;">Tap here (or press R) to reload!</div>
 
   <button id="reloadBtn" class="glass" style="border-radius:999px;" title="Reload">
@@ -496,7 +517,7 @@
   <div id="centerMsg" class="glass" style="border-radius:34px;">
     <div id="menuScreen">
       <h1>🎈 Pellet Pop Carnival 🎯</h1>
-      <p>Pop balloons and targets with your pellet gun! Grab ⚡💥❄️ power-ups, and fill the streak bar for a <b>Golden Round</b> of double points!</p>
+      <p>Pop balloons and targets with your pellet gun! Grab ⚡💥❄️ power-ups, fill the streak bar for a <b>Golden Round</b>, and solve 🧠 <b>Brain Rounds</b> by shooting the balloon with the right answer!</p>
       <p class="big">Don't shoot the birds or the friendly mascot!</p>
       <div class="segmented glass" id="diffRow" style="border-radius:999px;">
         <div class="segThumb"></div>
@@ -540,6 +561,7 @@
   const streakFillEl = document.getElementById('streakFill');
   const fxWrap = document.getElementById('fxWrap');
   const goldenBanner = document.getElementById('goldenBanner');
+  const brainBanner = document.getElementById('brainBanner');
   const centerMsg = document.getElementById('centerMsg');
   const menuScreen = document.getElementById('menuScreen');
   const interScreen = document.getElementById('interScreen');
@@ -817,6 +839,8 @@
   let golden = 0;           // seconds of golden round remaining
   let effects = { rapid: 0, big: 0, freeze: 0 }; // seconds remaining per power-up
   let slowMo = 0;           // seconds of slow-motion remaining
+  let brain = null;         // active brain round: { text, answer, timeLeft }
+  let nextBrainAt = 0;      // elapsed-seconds mark for the next brain round
   let shakeTime = 0;
   let shakeMag = 0;
   let crosshair = { x: W/2, y: H/2 };
@@ -856,6 +880,9 @@
     golden = 0;
     effects = { rapid: 0, big: 0, freeze: 0 };
     slowMo = 0;
+    brain = null;
+    nextBrainAt = randRange(14, 20);
+    brainBanner.classList.remove('show');
     roundShots = 0; roundHits = 0; roundPopped = 0; roundBestCombo = 0;
     reloadBtn.classList.remove('urgent');
     goldenBanner.classList.remove('show');
@@ -924,6 +951,66 @@
       alive: true,
     });
     lastPowerupSpawn = now;
+  }
+
+  // ---------- Brain rounds: shoot the balloon with the right answer ----------
+  function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+
+  function genBrainQuestion() {
+    let text, answer;
+    if (diffKey === 'EASY') {
+      const a = randInt(1, 5), b = randInt(1, 5);
+      text = `${a} + ${b} = ?`; answer = a + b;
+    } else if (diffKey === 'NORMAL') {
+      const kind = randInt(0, 2);
+      if (kind === 0) { const a = randInt(3, 12), b = randInt(3, 12); text = `${a} + ${b} = ?`; answer = a + b; }
+      else if (kind === 1) { const a = randInt(5, 18), b = randInt(1, a - 1); text = `${a} − ${b} = ?`; answer = a - b; }
+      else { const a = randInt(2, 5), b = randInt(2, 5); text = `${a} × ${b} = ?`; answer = a * b; }
+    } else {
+      const kind = randInt(0, 2);
+      if (kind === 0) { const a = randInt(3, 9), b = randInt(3, 9); text = `${a} × ${b} = ?`; answer = a * b; }
+      else if (kind === 1) { const b = randInt(2, 9), q = randInt(2, 9); text = `${b * q} ÷ ${b} = ?`; answer = q; }
+      else { const a = randInt(2, 9), b = randInt(2, 9); text = `${a} × ? = ${a * b}`; answer = b; }
+    }
+    // distractors: near-miss numbers, unique and non-negative
+    const choices = new Set([answer]);
+    while (choices.size < (diffKey === 'EASY' ? 3 : 4)) {
+      const d = answer + randInt(-3, 3);
+      if (d >= 0 && d !== answer) choices.add(d);
+    }
+    return { text, answer, choices: [...choices].sort(() => Math.random() - 0.5) };
+  }
+
+  function startBrainRound() {
+    const q = genBrainQuestion();
+    brain = { text: q.text, answer: q.answer, timeLeft: 10 };
+    const n = q.choices.length;
+    q.choices.forEach((val, i) => {
+      const slotX = W * (0.5 + (i - (n - 1) / 2) * 0.22);
+      entities.push({
+        brainVal: val,
+        def: { emoji: '🎈', color: val === q.answer ? '#69db7c' : '#e599f7' },
+        radius: 30,
+        x: slotX + randRange(-20, 20),
+        y: randRange(H * 0.3, H * 0.55),
+        vx: randRange(-30, 30),
+        vy: randRange(-15, 15),
+        pattern: 'brain',
+        wobble: Math.random() * 1000,
+        alive: true,
+      });
+    });
+    brainBanner.innerHTML = `🧠 ${escapeHtml(brain.text)}<span class="brainTimer">10s</span>`;
+    brainBanner.classList.add('show');
+    beep(660, 0.12, 'sine', 0.18, 990);
+  }
+
+  function endBrainRound(solved) {
+    entities = entities.filter(e => e.brainVal === undefined);
+    brain = null;
+    brainBanner.classList.remove('show');
+    nextBrainAt = elapsed + randRange(18, 26);
+    if (!solved) beep(220, 0.25, 'sine', 0.1, 150);
   }
 
   function spawnEntity(now) {
@@ -1092,6 +1179,33 @@
       entities = entities.filter(e => e !== hit);
       roundHits++;
 
+      if (hit.brainVal !== undefined) {
+        if (brain && hit.brainVal === brain.answer) {
+          let gained = golden > 0 ? 120 : 60;
+          score += gained;
+          roundPopped++;
+          ammo = DIFF.magSize;            // reward: full magazine
+          reloading = false;
+          streakIdle = 0;
+          if (golden <= 0) {
+            streak = Math.min(STREAK_MAX, Math.floor(streak) + 2);
+            if (streak >= STREAK_MAX) triggerGolden();
+          }
+          popParticles(hit.x, hit.y, '#69db7c');
+          addRing(hit.x, hit.y, hit.radius * 3, '#69db7c');
+          addFloatText(hit.x, hit.y, '🧠 Correct! +' + gained, '#69db7c');
+          sfxHighScore();
+          endBrainRound(true);
+        } else {
+          popParticles(hit.x, hit.y, '#e599f7');
+          addFloatText(hit.x, hit.y, 'Not quite — keep thinking!', '#e599f7');
+          streak = Math.max(0, streak - 1);
+          beep(240, 0.15, 'square', 0.08, 160);
+        }
+        updateHud();
+        return;
+      }
+
       if (hit.powerup) {
         applyPowerup(hit.powerup);
         score += golden > 0 ? 10 : 5;
@@ -1221,7 +1335,17 @@
     });
     if (slowMo > 0) slowMo -= dt;
 
-    if (now - lastSpawn > spawnInterval) {
+    // brain rounds: scheduled thinking breaks (not during a golden round)
+    if (brain) {
+      brain.timeLeft -= dt;
+      const t = Math.max(0, Math.ceil(brain.timeLeft));
+      brainBanner.innerHTML = `🧠 ${escapeHtml(brain.text)}<span class="brainTimer">${t}s</span>`;
+      if (brain.timeLeft <= 0) endBrainRound(false);
+    } else if (elapsed >= nextBrainAt && golden <= 0) {
+      startBrainRound();
+    }
+
+    if (!brain && now - lastSpawn > spawnInterval) {
       lastSpawn = now;
       spawnEntity(now);
     }
@@ -1230,7 +1354,12 @@
     let worldDt = dt * (slowMo > 0 ? 0.35 : 1);
     const entDt = worldDt * (effects.freeze > 0 ? 0.35 : 1);
     entities.forEach(en => {
-      if (en.pattern === 'bobber') {
+      if (en.pattern === 'brain') {
+        en.x += en.vx * entDt;
+        en.y += en.vy * entDt + Math.sin((now/400) + en.wobble) * 0.5;
+        if (en.x < en.radius + 10 || en.x > W - en.radius - 10) en.vx = -en.vx;
+        if (en.y < H * 0.15 || en.y > H * 0.75) en.vy = -en.vy;
+      } else if (en.pattern === 'bobber') {
         en.x += en.vx * entDt;
         en.bobPhase = (en.bobPhase || en.wobble) + en.bobFreq * entDt;
         en.y = en.baseY + Math.sin(en.bobPhase) * en.bobAmp;
@@ -1315,6 +1444,24 @@
   function drawEntity(en, now) {
     ctx.save();
     ctx.translate(en.x, en.y);
+    if (en.brainVal !== undefined) {
+      ctx.font = `${en.radius*2}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetY = 4;
+      ctx.fillText('🎈', 0, 2);
+      ctx.shadowColor = 'transparent';
+      ctx.font = `bold ${Math.round(en.radius*0.9)}px ${'-apple-system, Trebuchet MS, sans-serif'}`;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = 4;
+      ctx.strokeText(en.brainVal, 0, -en.radius*0.25);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(en.brainVal, 0, -en.radius*0.25);
+      ctx.restore();
+      return;
+    }
     if (en.powerup) {
       // gentle glow + pulse so power-ups read as special
       const pulse = 1 + Math.sin(now/180) * 0.12;
@@ -1473,6 +1620,8 @@
     state = 'gameover';
     stopMusic();
     goldenBanner.classList.remove('show');
+    brainBanner.classList.remove('show');
+    brain = null;
     reloadHint.classList.remove('show');
     reloadBtn.classList.remove('urgent');
     const lifetime = mergeRoundStats();
