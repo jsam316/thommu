@@ -1,4 +1,4 @@
-const CACHE = 'pelletpop-v1';
+const CACHE = 'pelletpop-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {

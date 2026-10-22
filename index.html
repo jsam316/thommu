@@ -553,6 +553,80 @@
     text-align: center;
   }
 
+  #pauseBtn {
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    position: absolute;
+    top: calc(10px + var(--safe-t));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #pauseBtn:active { transform: translateX(-50%) scale(0.92); }
+
+  #toast {
+    position: absolute;
+    bottom: calc(76px + var(--safe-b));   /* bottom-centre: clear of the HUD, banners and sheet titles */
+    left: 0; right: 0;
+    margin-inline: auto;
+    width: fit-content;
+    max-width: calc(100% - 28px);
+    z-index: 32;   /* above every sheet/panel so unlock toasts on the game-over screen stay visible */
+    color: #fff;
+    background: rgba(14, 20, 46, 0.92);
+    border: 1px solid rgba(255,255,255,0.45);
+    border-radius: 999px;
+    padding: 9px 20px;
+    font-size: clamp(13px, 3.6vw, 16px);
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  .badgeGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+    text-align: left;
+  }
+  .badge {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+  }
+  .badge.got { background: rgba(255,214,10,0.14); border-color: rgba(255,214,10,0.5); }
+  .badge.locked { opacity: 0.6; }
+  .badgeIcon { grid-row: 1 / span 2; font-size: 26px; text-align: center; }
+  .badgeName { font-size: 13px; font-weight: 800; }
+  .badgeDesc { font-size: 11px; opacity: 0.8; line-height: 1.25; }
+  .starRow { font-size: clamp(26px, 7vw, 34px); letter-spacing: 4px; margin: 2px 0 4px; }
+  .btnRow { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  }
+
   .reloadInner {
     position: relative;
     z-index: 1;
@@ -588,7 +662,7 @@
   .hidden { display: none !important; }
 
   /* short viewports (laptops, landscape phones): compact the menu so it fits without scrolling */
-  @media (max-height: 780px) {
+  @media (max-height: 820px) {
     #centerMsg { padding: 18px clamp(18px,5vw,30px); }
     #centerMsg h1 { font-size: clamp(20px, 5vw, 28px); margin-bottom: 4px; }
     #centerMsg p { font-size: clamp(13px, 3.3vw, 15px); margin: 5px 0; line-height: 1.35; }
@@ -649,6 +723,8 @@
   </div>
 
   <div id="reloadBig" class="hidden">🔄 RELOAD!<span class="reloadSub">Tap here or press R</span></div>
+  <button id="pauseBtn" class="glass hidden" style="border-radius:50%;" title="Pause (P)">⏸</button>
+  <div id="toast"></div>
 
   <div id="centerMsg" class="glass" style="border-radius:34px;">
     <div id="menuScreen">
@@ -673,6 +749,7 @@
         <button class="segBtn" data-val="2">2 Players</button>
       </div>
       <button id="startBtn" class="btnPrimary">Start Game</button>
+      <div class="btnRow"><button id="badgesBtn" class="btnGhost">🏅 Badges</button></div>
       <div id="leaderboard">
         <h2>🏆 Top Scores</h2>
         <div id="lbContent"></div>
@@ -680,6 +757,18 @@
     </div>
     <div id="interScreen" class="hidden"></div>
     <div id="overScreen" class="hidden"></div>
+    <div id="pauseScreen" class="hidden">
+      <h1>⏸ Paused</h1>
+      <p>Take a breather — the balloons will wait.</p>
+      <button id="resumeBtn" class="btnPrimary">Resume</button><br>
+      <button id="quitBtn" class="btnGhost">Quit to Menu</button>
+    </div>
+    <div id="badgesScreen" class="hidden">
+      <h1>🏅 Badges</h1>
+      <p id="badgeCount"></p>
+      <div id="badgeContent"></div>
+      <button id="badgesBackBtn" class="btnGhost">Back</button>
+    </div>
   </div>
 </div>
 
@@ -715,16 +804,34 @@
   const sfxVolVal = document.getElementById('sfxVolVal');
   const musicVolVal = document.getElementById('musicVolVal');
   const reloadBig = document.getElementById('reloadBig');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const pauseScreen = document.getElementById('pauseScreen');
+  const badgesScreen = document.getElementById('badgesScreen');
+  const toastEl = document.getElementById('toast');
   const lbContent = document.getElementById('lbContent');
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 
   let W, H;
   function resize() {
-    W = canvas.width = game.clientWidth;
-    H = canvas.height = game.clientHeight;
+    // render at device resolution so emoji/text stay crisp on HiDPI screens;
+    // W/H remain CSS pixels, which all game logic uses
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    W = game.clientWidth;
+    H = game.clientHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resize();
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function buzz(pattern) {
+    if (!isTouch || !navigator.vibrate) return;
+    try { navigator.vibrate(pattern); } catch (e) {}
+  }
+  function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function storeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
 
   // ---------- Audio: master/SFX/music gains + synthesized SFX + chiptune music ----------
   let audioCtx = null;
@@ -947,7 +1054,13 @@
   // ---------- Leaderboard (localStorage) ----------
   const LB_KEY = 'pelletPopScores';
   function loadScores() {
-    try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); }
+    try {
+      const arr = JSON.parse(localStorage.getItem(LB_KEY) || '[]');
+      if (!Array.isArray(arr)) return [];
+      // drop anything malformed so a corrupted entry can never break rendering
+      return arr.filter(s => s && typeof s.name === 'string' && Number.isFinite(s.score))
+                .map(s => ({ ...s, name: s.name.slice(0, 12), score: Math.floor(s.score) }));
+    }
     catch (e) { return []; }
   }
   function saveScoresArr(arr) {
@@ -997,8 +1110,83 @@
     s.shots = (s.shots || 0) + roundShots;
     s.hits = (s.hits || 0) + roundHits;
     s.bestCombo = Math.max(s.bestCombo || 0, roundBestCombo);
+    s.brainCorrect = (s.brainCorrect || 0) + roundBrainCorrect;
+    s.bossPops = (s.bossPops || 0) + roundBoss;
+    s.rounds = (s.rounds || 0) + 1;
     try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) {}
     return s;
+  }
+
+  // ---------- Achievements ----------
+  const ACH_KEY = 'pelletPopBadges';
+  const ACHIEVEMENTS = [
+    { id: 'first_pop',    emoji: '🎈', name: 'First Pop!',      desc: 'Pop your very first target' },
+    { id: 'century',      emoji: '💯', name: 'Century',         desc: 'Score 100 points in one round' },
+    { id: 'highroller',   emoji: '💎', name: 'High Roller',     desc: 'Score 500 points in one round' },
+    { id: 'combo5',       emoji: '🔥', name: 'Combo King',      desc: 'Hit a x5 combo' },
+    { id: 'golden',       emoji: '🌟', name: 'Going Gold',      desc: 'Trigger a Golden Round' },
+    { id: 'brainiac',     emoji: '🧠', name: 'Brainiac',        desc: 'Answer 3 Brain Rounds correctly' },
+    { id: 'sharpshooter', emoji: '🎯', name: 'Sharpshooter',    desc: 'Finish a round at 75%+ accuracy (20+ shots)' },
+    { id: 'clean',        emoji: '🕊️', name: 'Clean Round',     desc: 'Finish a round without hitting a bird or the mascot' },
+    { id: 'boss',         emoji: '👑', name: 'Boss Buster',     desc: 'Pop a boss balloon' },
+    { id: 'survivor',     emoji: '🛡️', name: 'Survivor',        desc: 'Last 90 seconds in Endless mode' },
+  ];
+  function loadBadges() {
+    try {
+      const arr = JSON.parse(storeGet(ACH_KEY) || '[]');
+      return new Set(Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : []);
+    } catch (e) { return new Set(); }
+  }
+  let badges = loadBadges();
+  const toastQueue = [];
+  let toastBusy = false;
+  function showToast(html, urgent) {
+    // urgent toasts (direct feedback to a tap) jump ahead of queued badge unlocks
+    if (urgent) toastQueue.unshift(html); else toastQueue.push(html);
+    if (toastBusy) return;
+    const next = () => {
+      if (!toastQueue.length) { toastBusy = false; return; }
+      toastBusy = true;
+      toastEl.innerHTML = toastQueue.shift();
+      toastEl.classList.add('show');
+      setTimeout(() => {
+        toastEl.classList.remove('show');
+        setTimeout(next, 350);
+      }, 2200);
+    };
+    next();
+  }
+  function unlock(id) {
+    if (badges.has(id)) return;
+    const a = ACHIEVEMENTS.find(x => x.id === id);
+    if (!a) return;
+    badges.add(id);
+    storeSet(ACH_KEY, JSON.stringify([...badges]));
+    showToast(`🏅 Badge unlocked: ${a.emoji} <b>${escapeHtml(a.name)}</b>`);
+    sfxHighScore();
+    buzz([30, 40, 30]);
+  }
+  function checkEndOfRoundBadges(lifetime) {
+    if (score >= 100) unlock('century');
+    if (score >= 500) unlock('highroller');
+    if (roundShots >= 20 && roundHits / roundShots >= 0.75) unlock('sharpshooter');
+    if (roundShots >= 15 && roundBadHits === 0) unlock('clean');
+    if ((lifetime.brainCorrect || 0) >= 3) unlock('brainiac');
+  }
+  function renderBadges(container) {
+    container.innerHTML = '<div class="badgeGrid">' + ACHIEVEMENTS.map(a => {
+      const got = badges.has(a.id);
+      return `<div class="badge ${got ? 'got' : 'locked'}" title="${escapeHtml(a.desc)}">
+        <div class="badgeIcon">${got ? a.emoji : '🔒'}</div>
+        <div class="badgeName">${escapeHtml(a.name)}</div>
+        <div class="badgeDesc">${escapeHtml(a.desc)}</div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+  function starsFor(sc) {
+    const t = { EASY: [120, 250, 400], NORMAL: [150, 300, 500], HARD: [180, 360, 600] }[diffKey];
+    const n = sc >= t[2] ? 3 : sc >= t[1] ? 2 : sc >= t[0] ? 1 : 0;
+    return '⭐'.repeat(n) + '☆'.repeat(3 - n);
   }
 
   // ---------- State ----------
@@ -1035,6 +1223,11 @@
 
   // per-round stats
   let roundShots = 0, roundHits = 0, roundPopped = 0, roundBestCombo = 0;
+  let roundBadHits = 0, roundBrainCorrect = 0, roundBoss = 0;
+  let bossPending = false;   // a boss balloon is due at the next spawn tick
+
+  // pause bookkeeping: performance.now()-based timers are shifted forward on resume
+  let pausedAt = 0;
 
   // two-player pass-and-play
   let currentPlayer = 1;
@@ -1070,6 +1263,8 @@
     nextBrainAt = randRange(14, 20);
     brainBanner.classList.remove('show');
     roundShots = 0; roundHits = 0; roundPopped = 0; roundBestCombo = 0;
+    roundBadHits = 0; roundBrainCorrect = 0; roundBoss = 0;
+    bossPending = false;
     reloadBtn.classList.remove('urgent');
     reloadBig.classList.add('hidden');
     goldenBanner.classList.remove('show');
@@ -1146,19 +1341,30 @@
 
   function genBrainQuestion() {
     let text, answer;
+    // number-pattern questions: "what comes next?" (Normal/Hard)
+    const seqQ = () => {
+      const step = randInt(2, diffKey === 'HARD' ? 9 : 5);
+      const start = randInt(1, 10);
+      const down = diffKey === 'HARD' && Math.random() < 0.4;
+      const s = down ? start + step * 4 : start;
+      const seq = [0, 1, 2].map(i => down ? s - step * i : s + step * i);
+      return { text: `${seq.join(', ')}, ?`, answer: down ? s - step * 3 : s + step * 3 };
+    };
     if (diffKey === 'EASY') {
-      const a = randInt(1, 5), b = randInt(1, 5);
-      text = `${a} + ${b} = ?`; answer = a + b;
+      if (Math.random() < 0.3) { const a = randInt(2, 9), b = randInt(1, a); text = `${a} − ${b} = ?`; answer = a - b; }
+      else { const a = randInt(1, 5), b = randInt(1, 5); text = `${a} + ${b} = ?`; answer = a + b; }
     } else if (diffKey === 'NORMAL') {
-      const kind = randInt(0, 2);
+      const kind = randInt(0, 3);
       if (kind === 0) { const a = randInt(3, 12), b = randInt(3, 12); text = `${a} + ${b} = ?`; answer = a + b; }
       else if (kind === 1) { const a = randInt(5, 18), b = randInt(1, a - 1); text = `${a} − ${b} = ?`; answer = a - b; }
-      else { const a = randInt(2, 5), b = randInt(2, 5); text = `${a} × ${b} = ?`; answer = a * b; }
+      else if (kind === 2) { const a = randInt(2, 5), b = randInt(2, 5); text = `${a} × ${b} = ?`; answer = a * b; }
+      else { ({ text, answer } = seqQ()); }
     } else {
-      const kind = randInt(0, 2);
+      const kind = randInt(0, 3);
       if (kind === 0) { const a = randInt(3, 9), b = randInt(3, 9); text = `${a} × ${b} = ?`; answer = a * b; }
       else if (kind === 1) { const b = randInt(2, 9), q = randInt(2, 9); text = `${b * q} ÷ ${b} = ?`; answer = q; }
-      else { const a = randInt(2, 9), b = randInt(2, 9); text = `${a} × ? = ${a * b}`; answer = b; }
+      else if (kind === 2) { const a = randInt(2, 9), b = randInt(2, 9); text = `${a} × ? = ${a * b}`; answer = b; }
+      else { ({ text, answer } = seqQ()); }
     }
     // distractors: near-miss numbers, unique and non-negative
     const choices = new Set([answer]);
@@ -1201,7 +1407,30 @@
     if (!solved) beep(220, 0.25, 'sine', 0.1, 150);
   }
 
+  function spawnBoss() {
+    const fromLeft = Math.random() < 0.5;
+    const radius = 46;
+    entities.push({
+      boss: true, hp: 3, maxHp: 3,
+      def: { emoji: '🎈', color: '#ffd60a' },
+      radius,
+      x: fromLeft ? -radius * 2 : W + radius * 2,
+      y: randRange(H * 0.2, H * 0.5),
+      vx: (fromLeft ? 1 : -1) * (DIFF.baseSpeed * 0.55),
+      vy: randRange(-8, 8),
+      pattern: 'drift',
+      wobble: Math.random() * 1000,
+      hitFlash: 0,
+      alive: true,
+    });
+  }
+
   function spawnEntity(now) {
+    if (bossPending && !entities.some(e => e.boss)) {
+      bossPending = false;
+      spawnBoss();
+      return;
+    }
     // occasional power-up instead of a target (at most one on screen, min 9s apart)
     if (now - lastPowerupSpawn > 9000 && Math.random() < 0.12 && !entities.some(e => e.powerup)) {
       spawnPowerup(now);
@@ -1324,6 +1553,8 @@
     streak = 0;
     goldenBanner.classList.add('show');
     sfxGolden();
+    buzz([30, 40, 30, 40, 60]);
+    unlock('golden');
   }
 
   function applyPowerup(key) {
@@ -1342,7 +1573,7 @@
     ammo--;
     roundShots++;
     sfxShoot();
-    shakeTime = 0.08; shakeMag = 4;
+    if (!reduceMotion) { shakeTime = 0.08; shakeMag = 4; }
 
     for (let i=0;i<4;i++){
       particles.push({
@@ -1361,15 +1592,48 @@
     }
 
     if (hit) {
+      // boss balloons soak several hits before popping
+      if (hit.boss && hit.hp > 1) {
+        hit.hp--;
+        roundHits++;
+        score += golden > 0 ? 30 : 15;
+        addRing(hit.x, hit.y, hit.radius * 1.6, '#ffd60a');
+        popParticles(hit.x, hit.y, '#ffd60a');
+        addFloatText(hit.x, hit.y, '+' + (golden > 0 ? 30 : 15) + ' 👑', '#ffd60a');
+        hit.hitFlash = 0.18;
+        sfxPop();
+        buzz(20);
+        updateHud();
+        return;
+      }
+
       hit.alive = false;
       entities = entities.filter(e => e !== hit);
       roundHits++;
+
+      if (hit.boss) {
+        const gained = golden > 0 ? 200 : 100;
+        score += gained;
+        roundPopped++;
+        roundBoss++;
+        slowMo = 0.18;
+        for (let i = 0; i < 3; i++) addRing(hit.x, hit.y, hit.radius * (2 + i), i % 2 ? '#fff' : '#ffd60a');
+        popParticles(hit.x, hit.y, '#ffd60a');
+        popParticles(hit.x, hit.y, '#ff9f0a');
+        addFloatText(hit.x, hit.y, '👑 BOSS DOWN! +' + gained, '#ffd60a');
+        sfxGolden();
+        buzz([40, 30, 80]);
+        unlock('boss');
+        updateHud();
+        return;
+      }
 
       if (hit.brainVal !== undefined) {
         if (brain && hit.brainVal === brain.answer) {
           let gained = golden > 0 ? 120 : 60;
           score += gained;
           roundPopped++;
+          roundBrainCorrect++;
           ammo = DIFF.magSize;            // reward: full magazine
           reloading = false;
           streakIdle = 0;
@@ -1381,6 +1645,8 @@
           addRing(hit.x, hit.y, hit.radius * 3, '#69db7c');
           addFloatText(hit.x, hit.y, '🧠 Correct! +' + gained, '#69db7c');
           sfxHighScore();
+          buzz([20, 30, 20]);
+          if ((loadStats().brainCorrect || 0) + roundBrainCorrect >= 3) unlock('brainiac');
           endBrainRound(true);
         } else {
           popParticles(hit.x, hit.y, '#e599f7');
@@ -1401,7 +1667,9 @@
       } else if (hit.bad) {
         popParticles(hit.x, hit.y, '#ff6b6b');
         sfxBad();
-        shakeTime = 0.25; shakeMag = 10;
+        buzz(70);
+        roundBadHits++;
+        if (!reduceMotion) { shakeTime = 0.25; shakeMag = 10; }
         comboCount = 0;
         streak = 0;
         if (modeKey === 'ENDLESS') {
@@ -1418,6 +1686,9 @@
         comboCount++;
         roundPopped++;
         roundBestCombo = Math.max(roundBestCombo, comboCount);
+        unlock('first_pop');
+        if (comboCount >= 5) unlock('combo5');
+        buzz(12);
         const comboBonus = comboCount >= 2 ? Math.floor(hit.def.points * 0.5 * Math.min(comboCount-1,4)) : 0;
         let gained = hit.def.points + comboBonus;
         if (golden > 0) gained *= 2;
@@ -1451,10 +1722,11 @@
   }
 
   // taps on the on-screen controls must not also fire a pellet
-  const UI_CONTROLS = '#reloadBtn, #muteBtn, #settingsBtn, #reloadBig, #audioPanel';
+  const UI_CONTROLS = '#reloadBtn, #muteBtn, #settingsBtn, #pauseBtn, #reloadBig, #audioPanel';
 
   game.addEventListener('mousedown', (e) => {
     if (state !== 'playing') return;
+    if (e.button !== 0) return;                 // right/middle clicks never shoot
     if (e.target.closest(UI_CONTROLS)) return;
     const p = getPos(e);
     crosshair = p;
@@ -1464,19 +1736,64 @@
     if (state !== 'playing') return;
     if (e.target.closest(UI_CONTROLS)) return;
     e.preventDefault();
+    if (e.touches.length > 1) return;           // a second finger must not double-fire
     const p = getPos(e);
     crosshair = p;
     showCrosshair = true;
     shoot(p.x, p.y);
     setTimeout(() => { showCrosshair = false; }, 250);
   }, { passive: false });
+  game.addEventListener('contextmenu', (e) => e.preventDefault());   // no long-press menu mid-game
   game.addEventListener('mousemove', (e) => {
     crosshair = getPos(e);
   });
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') tryReload();
+    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+      if (state === 'playing') pauseGame();
+      else if (state === 'paused') resumeGame();
+    }
   });
+
+  // ---------- Pause ----------
+  function pauseGame() {
+    if (state !== 'playing') return;
+    state = 'paused';
+    pausedAt = performance.now();
+    stopMusic();
+    reloadBig.classList.add('hidden');
+    pauseBtn.classList.add('hidden');
+    showScreen(pauseScreen);
+  }
+  function resumeGame() {
+    if (state !== 'paused') return;
+    // shift wall-clock timers so the pause doesn't instantly complete a reload or dump a spawn burst
+    const delta = performance.now() - pausedAt;
+    lastSpawn += delta;
+    lastPowerupSpawn += delta;
+    reloadStart += delta;
+    lastFrame = 0;
+    state = 'playing';
+    showScreen(null);
+    pauseBtn.classList.remove('hidden');
+    hudSig = '';
+    updateHud();
+    ensureAudio();
+    startMusic();
+  }
+  function quitToMenu() {
+    if (state !== 'paused') return;
+    state = 'menu';
+    pauseBtn.classList.add('hidden');
+    backToMenu();
+  }
+  pauseBtn.addEventListener('click', pauseGame);
+  document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+  document.getElementById('quitBtn').addEventListener('click', quitToMenu);
+  // auto-pause when the tab is hidden or the window loses focus (phone call, app switch)
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+  window.addEventListener('blur', pauseGame);
 
   reloadBtn.addEventListener('click', tryReload);
   reloadBtn.addEventListener('touchend', (e) => { e.preventDefault(); tryReload(); }, { passive: false });
@@ -1499,7 +1816,9 @@
       level = newLevel;
       spawnInterval = Math.max(DIFF.spawnMin, DIFF.spawnBase - level * DIFF.spawnPerLevel);
       triggerLevelUp();
+      bossPending = true;           // every level-up brings a boss balloon
     }
+    if (modeKey === 'ENDLESS' && elapsed >= 90) unlock('survivor');
 
     if (reloading && now - reloadStart >= effectiveReloadTime()) {
       reloading = false;
@@ -1671,6 +1990,32 @@
       ctx.scale(pulse, pulse);
       ctx.shadowColor = en.def.color;
       ctx.shadowBlur = 18;
+    } else if (en.boss) {
+      if (en.hitFlash > 0) en.hitFlash -= 1/60;
+      const squash = en.hitFlash > 0 ? 0.88 : 1 + Math.sin(now/260) * 0.03;
+      ctx.scale(squash, 2 - squash);
+      ctx.shadowColor = '#ffd60a';
+      ctx.shadowBlur = 22;
+      ctx.font = `${en.radius*2}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🎈', 0, 2);
+      ctx.shadowBlur = 0;
+      ctx.font = `${Math.round(en.radius*0.8)}px serif`;
+      ctx.fillText('👑', 0, -en.radius * 0.95);
+      // HP pips under the balloon
+      const pipR = 5, gap = 14, startX = -((en.maxHp - 1) * gap) / 2;
+      for (let i = 0; i < en.maxHp; i++) {
+        ctx.beginPath();
+        ctx.arc(startX + i * gap, en.radius + 12, pipR, 0, Math.PI*2);
+        ctx.fillStyle = i < en.hp ? '#ff453a' : 'rgba(255,255,255,0.35)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+      return;
     } else {
       ctx.shadowColor = 'rgba(0,0,0,0.25)';
       ctx.shadowBlur = 6;
@@ -1793,7 +2138,7 @@
 
   // ---------- Game flow ----------
   function showScreen(el) {
-    [menuScreen, interScreen, overScreen].forEach(s => s.classList.toggle('hidden', s !== el));
+    [menuScreen, interScreen, overScreen, pauseScreen, badgesScreen].forEach(s => s.classList.toggle('hidden', s !== el));
     centerMsg.classList.toggle('hidden', !el);
   }
 
@@ -1807,8 +2152,25 @@
     resetRound();
     state = 'playing';
     showScreen(null);
+    pauseBtn.classList.remove('hidden');
     ensureAudio();
     startMusic();
+  }
+
+  function shareText() {
+    const mode = modeKey === 'ENDLESS' ? 'Endless' : 'Timed';
+    return `I scored ${score} points (${starsFor(score)}) on ${DIFF.label} ${mode} in Pellet Pop Carnival! 🎈🎯 Can you beat me? ${location.href.split('?')[0]}`;
+  }
+  async function shareScore() {
+    const text = shareText();
+    try {
+      if (navigator.share) { await navigator.share({ text }); return; }
+      await navigator.clipboard.writeText(text);
+      showToast('📋 Score copied — paste it anywhere!', true);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;     // user dismissed the share sheet
+      showToast('Couldn\'t share on this device', true);
+    }
   }
 
   function roundStatsHtml(lifetime) {
@@ -1827,8 +2189,10 @@
     brain = null;
     reloadBtn.classList.remove('urgent');
     reloadBig.classList.add('hidden');
+    pauseBtn.classList.add('hidden');
     audioPanel.classList.add('hidden');
     const lifetime = mergeRoundStats();
+    checkEndOfRoundBadges(lifetime);
     const title = modeKey === 'ENDLESS' ? 'Out of Lives!' : "Time's Up!";
 
     if (playersMode === 2 && currentPlayer === 1) {
@@ -1875,17 +2239,21 @@
 
     overScreen.innerHTML = `
       <h1>${title}</h1>
+      <div class="starRow">${starsFor(score)}</div>
       <p class="big">${msg}</p>
       <p>Final Score: <b>${score}</b> &nbsp;|&nbsp; Level ${level} &nbsp;|&nbsp; ${DIFF.label}</p>
       ${roundStatsHtml(lifetime)}
       ${qualifies ? `
         <div id="saveScoreForm">
           <div id="newHighBadge">🎉 New Top-10 Score!</div>
-          <input id="nameInput" type="text" placeholder="Your name" maxlength="12" autocomplete="off">
+          <input id="nameInput" type="text" placeholder="Your name" maxlength="12" autocomplete="off" value="${escapeHtml(storeGet('pelletPopName') || '')}">
           <button id="saveScoreBtn" class="btnPrimary" style="margin-top:0;">Save Score</button>
         </div>
       ` : `<button id="restartBtn" class="btnPrimary">Play Again</button>`}
-      <br><button id="menuBtn" class="btnGhost">Menu</button>
+      <div class="btnRow">
+        <button id="shareBtn" class="btnGhost">📣 Share</button>
+        <button id="menuBtn" class="btnGhost">Menu</button>
+      </div>
       <div id="leaderboard">
         <h2>🏆 Top Scores</h2>
         <div id="lbContentOver"></div>
@@ -1896,6 +2264,7 @@
     const lbEl = document.getElementById('lbContentOver');
     renderLeaderboard(lbEl);
     document.getElementById('menuBtn').addEventListener('click', backToMenu);
+    document.getElementById('shareBtn').addEventListener('click', shareScore);
 
     if (qualifies) {
       const nameInput = document.getElementById('nameInput');
@@ -1903,6 +2272,7 @@
       sfxHighScore();
       const doSave = () => {
         const name = (nameInput.value || 'Player').trim() || 'Player';
+        storeSet('pelletPopName', name);
         addScore(name, score, diffKey, level, modeKey);
         renderLeaderboard(lbEl);
         const form = document.getElementById('saveScoreForm');
@@ -1919,10 +2289,20 @@
 
   function backToMenu() {
     state = 'menu';
+    stopMusic();
+    pauseBtn.classList.add('hidden');
     renderLeaderboard(lbContent);
     showScreen(menuScreen);
     segControls.forEach(c => c.refresh());
   }
+
+  function openBadges() {
+    document.getElementById('badgeCount').textContent = `${badges.size} of ${ACHIEVEMENTS.length} unlocked`;
+    renderBadges(document.getElementById('badgeContent'));
+    showScreen(badgesScreen);
+  }
+  document.getElementById('badgesBtn').addEventListener('click', openBadges);
+  document.getElementById('badgesBackBtn').addEventListener('click', () => { showScreen(menuScreen); segControls.forEach(c => c.refresh()); });
 
   startBtn.addEventListener('click', startMatch);
 
